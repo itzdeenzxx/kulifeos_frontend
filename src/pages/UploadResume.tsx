@@ -1,171 +1,409 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
-import { Upload, FileText, CheckCircle, Brain, Sparkles, ArrowRight } from "lucide-react";
-import { uploadedDocuments, aiAnalyzedSkills, skillData } from "@/lib/mockData";
+import { Upload, FileText, Sparkles, ArrowRight, Save, Trash2, Plus } from "lucide-react";
+import { extractTextFromPDF, getPdfFirstPageAsImage } from "@/lib/pdfExtractor";
+import { analyzeResumeWithAI } from "@/lib/aiAnalyze";
 
 const UploadResume = () => {
   const [isDragging, setIsDragging] = useState(false);
-  const [showResults, setShowResults] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [statusText, setStatusText] = useState("");
+  const [progress, setProgress] = useState(0);
+  
+  const [showForm, setShowForm] = useState(false);
+  const [resumeData, setResumeData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    skills: [] as string[],
+    education: [] as any[],
+    experience: [] as any[]
+  });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processFile = async (file: File) => {
+    if (!file) return;
+    
+    setLoading(true);
+    setShowForm(false);
+    setProgress(10);
+    setStatusText("กำลังอ่านไฟล์...");
+
+    try {
+      const isPdf = file.type === "application/pdf";
+      const isTxt = file.type === "text/plain";
+      const isImg = file.type.startsWith("image/");
+      
+      let parsedData = null;
+
+      if (isPdf) {
+        setProgress(30);
+        setStatusText("กำลังแยกเอกสาร (PDF OCR)...");
+        const text = await extractTextFromPDF(file);
+        
+        if (text && text.trim().length > 50) {
+          setProgress(60);
+          setStatusText("กำลังส่งให้ AI (Gemma 3N) จัดรูปแบบข้อมูล...");
+          parsedData = await analyzeResumeWithAI(text, false);
+        } else {
+          setProgress(40);
+          setStatusText("ไม่พบข้อความ กำลังแปลงเป็นรูปภาพ...");
+          const imgBase64 = await getPdfFirstPageAsImage(file);
+          setProgress(60);
+          setStatusText("กำลังส่งให้ AI (Qwen3-VL) อ่านจากรูปภาพ...");
+          parsedData = await analyzeResumeWithAI(imgBase64, true);
+        }
+      } else if (isTxt) {
+        setProgress(50);
+        const text = await file.text();
+        setStatusText("กำลังส่งให้ AI (Gemma 3N) จัดรูปแบบข้อมูล...");
+        parsedData = await analyzeResumeWithAI(text, false);
+      } else if (isImg) {
+        setProgress(40);
+        const imgBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+        setStatusText("กำลังส่งให้ AI (Qwen3-VL) อ่านจากรูปภาพ...");
+        parsedData = await analyzeResumeWithAI(imgBase64, true);
+      } else {
+        alert("รองรับเฉพาะ PDF, TXT หรือ รูปภาพเท่านั้น");
+        setLoading(false);
+        return;
+      }
+      
+      setProgress(90);
+      setStatusText("จัดเตรียมข้อมูลเสร็จสิ้น...");
+      
+      setResumeData({
+        name: parsedData?.name || "",
+        email: parsedData?.email || "",
+        phone: parsedData?.phone || "",
+        skills: Array.isArray(parsedData?.skills) ? parsedData.skills : [],
+        education: Array.isArray(parsedData?.education) ? parsedData.education : [],
+        experience: Array.isArray(parsedData?.experience) ? parsedData.experience : []
+      });
+      
+      setProgress(100);
+      setTimeout(() => {
+        setShowForm(true);
+        setLoading(false);
+      }, 500);
+
+    } catch (err: any) {
+      console.error(err);
+      alert("เกิดข้อผิดพลาดในการประมวลผล: " + err.message);
+      setLoading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processFile(e.target.files[0]);
+    }
+  };
 
   return (
     <AppLayout title="Upload & Analyze">
       <div className="mx-auto max-w-4xl space-y-6">
-        {/* Header */}
         <div className="mb-2">
-          <h2 className="text-2xl font-bold text-foreground">รู้จักตัวเองด้วย AI 🧠</h2>
-          <p className="text-muted-foreground">อัพโหลด Resume หรือ Transcript แล้วให้ AI วิเคราะห์ Skill ของคุณ</p>
+          <h2 className="text-2xl font-bold text-foreground">อัปโหลด Resume & Profile 📄</h2>
+          <p className="text-muted-foreground">ให้ AI ดึงข้อมูลอัตโนมัติจากไฟล์ PDF, TXT หรือรูปภาพ เพื่อลดการกรอกด้วยตนเอง</p>
         </div>
 
         {/* Upload Area */}
         <Card className="rounded-2xl border-border/50">
           <CardContent className="p-6">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept=".pdf,.txt,image/*" 
+              onChange={handleFileSelect} 
+            />
             <div
               className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 transition-colors duration-200 ${
                 isDragging ? "border-primary bg-accent/50" : "border-border/50 bg-muted/30"
               }`}
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
-              onDrop={(e) => { e.preventDefault(); setIsDragging(false); }}
+              onDrop={handleDrop}
             >
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-accent">
                 <Upload className="h-8 w-8 text-primary" />
               </div>
-              <h3 className="mb-1 text-lg font-semibold text-foreground">ลากไฟล์มาวางที่นี่</h3>
-              <p className="mb-4 text-sm text-muted-foreground">รองรับ PDF, DOC, DOCX — สูงสุด 10MB</p>
+              <h3 className="mb-1 text-lg font-semibold text-foreground">ลากไฟล์มาวางที่นี่ หรือคลิกเพื่ออัปโหลด</h3>
+              <p className="mb-4 text-sm text-muted-foreground">รองรับ PDF, TXT, Image — ทันทีด้วยพลัง AI</p>
               <div className="flex gap-3">
-                <Button className="gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90">
-                  <FileText className="h-4 w-4" /> Upload Resume
-                </Button>
-                <Button variant="outline" className="gap-2 rounded-xl border-primary/20 text-primary hover:bg-accent">
-                  <FileText className="h-4 w-4" /> Upload Transcript
+                <Button 
+                  onClick={() => fileInputRef.current?.click()} 
+                  disabled={loading}
+                  className="gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                      กำลังวิเคราะห์...
+                    </span>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4" /> เลือกไฟล์ Resume
+                    </>
+                  )}
                 </Button>
               </div>
+              
+              {loading && (
+                <div className="mt-8 w-full max-w-sm space-y-2">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{statusText}</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <Progress value={progress} className="h-2 w-full bg-accent [&>div]:bg-primary" />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Uploaded Documents */}
-        <Card className="rounded-2xl border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <FileText className="h-5 w-5 text-primary" /> Uploaded Documents
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {uploadedDocuments.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between rounded-xl border border-border/50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent">
-                    <FileText className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{doc.name}</p>
-                    <p className="text-xs text-muted-foreground">{doc.type === "resume" ? "Resume" : "Transcript"} • {doc.uploadedAt}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-primary" />
-                  <span className="text-xs font-medium text-primary">Analyzed</span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* AI Analysis Pipeline */}
-        <Card className="rounded-2xl border-border/50 bg-accent/30">
-          <CardContent className="p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold text-foreground">AI Analysis Pipeline</h3>
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-              {["Upload Document", "OCR Scan", "Extract Data", "AI Analysis", "Generate Skills"].map((step, i) => (
-                <div key={step} className="flex items-center gap-2">
-                  <div className="flex min-w-max items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-foreground/20 text-[10px]">{i + 1}</span>
-                    {step}
-                  </div>
-                  {i < 4 && <ArrowRight className="h-4 w-4 shrink-0 text-primary/50" />}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {showResults && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Radar Chart */}
-            <Card className="rounded-2xl border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Brain className="h-5 w-5 text-primary" /> Skill Radar
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="mx-auto h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart data={skillData}>
-                      <PolarGrid stroke="hsl(140 10% 90%)" />
-                      <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(150 5% 45%)", fontSize: 11 }} />
-                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                      <Radar name="Skills" dataKey="value" stroke="hsl(153 100% 20%)" fill="hsl(153 100% 20%)" fillOpacity={0.15} strokeWidth={2} />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Analyzed Skills */}
-            <Card className="rounded-2xl border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Sparkles className="h-5 w-5 text-primary" /> AI-Detected Skills
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {aiAnalyzedSkills.map((item) => (
-                  <div key={item.skill}>
-                    <div className="mb-1 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">{item.skill}</span>
-                        <Badge variant="secondary" className="rounded-full bg-accent text-accent-foreground border-0 px-2 py-0 text-[10px]">
-                          {item.source}
-                        </Badge>
-                      </div>
-                      <span className="text-xs font-semibold text-primary">{item.confidence}%</span>
-                    </div>
-                    <Progress value={item.confidence} className="h-1.5 bg-accent [&>div]:bg-primary" />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Generated Tags */}
-        {showResults && (
+        {showForm && (
           <Card className="rounded-2xl border-border/50">
-            <CardHeader>
-              <CardTitle className="text-lg">Generated Skill Tags</CardTitle>
+            <CardHeader className="border-b bg-muted/20">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Sparkles className="h-5 w-5 text-primary" /> 
+                ข้อมูลที่ AI วิเคราะห์ได้ (โปรดตรวจสอบและแก้ไข)
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {["AI & ML", "Data Analysis", "Python", "Leadership", "Database", "React", "Communication", "Research"].map((tag) => (
-                  <Badge key={tag} variant="secondary" className="rounded-full bg-accent text-accent-foreground border-0 px-4 py-1.5 text-sm font-medium transition-colors duration-200 hover:bg-primary hover:text-primary-foreground">
-                    {tag}
-                  </Badge>
-                ))}
+            <CardContent className="space-y-6 pt-6">
+              
+              {/* Basic Info */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label>ชื่อ - นามสกุล</Label>
+                  <Input 
+                    value={resumeData.name} 
+                    onChange={(e) => setResumeData({...resumeData, name: e.target.value})} 
+                    placeholder="เว้นว่างไว้..ถ้าไม่มี"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>อีเมล</Label>
+                  <Input 
+                    value={resumeData.email} 
+                    onChange={(e) => setResumeData({...resumeData, email: e.target.value})} 
+                    placeholder="เว้นว่างไว้..ถ้าไม่มี"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>เบอร์โทรศัพท์</Label>
+                  <Input 
+                    value={resumeData.phone} 
+                    onChange={(e) => setResumeData({...resumeData, phone: e.target.value})} 
+                    placeholder="เว้นว่างไว้..ถ้าไม่มี"
+                  />
+                </div>
               </div>
-              <p className="mt-4 text-xs text-muted-foreground">
-                🔄 Tags ถูกสร้างอัตโนมัติจาก AI — คุณสามารถแก้ไขหรือเพิ่มเติมได้ในหน้า Profile
-              </p>
+
+              {/* Skills */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">ทักษะความสามารถ (Skills)</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setResumeData({...resumeData, skills: [...resumeData.skills, ""]})}
+                    className="h-8 gap-1.5 text-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> เพิ่ม
+                  </Button>
+                </div>
+                {resumeData.skills.length === 0 && <p className="text-sm text-muted-foreground italic">ไม่พบข้อมูล (คุณสามารถเพิ่มได้เอง)</p>}
+                <div className="flex flex-wrap gap-2">
+                  {resumeData.skills.map((skill, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5 rounded-full border border-border bg-background py-1 pl-3 pr-1.5">
+                      <input 
+                        className="w-24 bg-transparent text-sm focus:outline-none focus:ring-0"
+                        value={skill}
+                        onChange={(e) => {
+                          const newSkills = [...resumeData.skills];
+                          newSkills[idx] = e.target.value;
+                          setResumeData({...resumeData, skills: newSkills});
+                        }}
+                      />
+                      <button 
+                        onClick={() => {
+                          const newSkills = resumeData.skills.filter((_, i) => i !== idx);
+                          setResumeData({...resumeData, skills: newSkills});
+                        }}
+                        className="rounded-full p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Education */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">ประวัติการศึกษา (Education)</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setResumeData({...resumeData, education: [...resumeData.education, { degree: "", field: "", institution: "" }]})}
+                    className="h-8 gap-1.5 text-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> เพิ่ม
+                  </Button>
+                </div>
+                {resumeData.education.length === 0 && <p className="text-sm text-muted-foreground italic">ไม่พบข้อมูล</p>}
+                
+                <div className="grid gap-4 md:grid-cols-2">
+                  {resumeData.education.map((edu, idx) => (
+                    <Card key={idx} className="bg-accent/20">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex justify-end">
+                           <button 
+                              onClick={() => {
+                                const newEdu = resumeData.education.filter((_, i) => i !== idx);
+                                setResumeData({...resumeData, education: newEdu});
+                              }}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">สถาบัน</Label>
+                          <Input 
+                            value={edu.institution || ""} 
+                            onChange={(e) => {
+                               const newEdu = [...resumeData.education];
+                               newEdu[idx].institution = e.target.value;
+                               setResumeData({...resumeData, education: newEdu});
+                            }} 
+                            placeholder="เช่น Kasetsart University"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">วุฒิ/คณะ/ภาควิชา</Label>
+                          <Input 
+                            value={(edu.degree || "") + " " + (edu.field || "")} 
+                            onChange={(e) => {
+                               const newEdu = [...resumeData.education];
+                               newEdu[idx].degree = e.target.value;
+                               newEdu[idx].field = "";
+                               setResumeData({...resumeData, education: newEdu});
+                            }} 
+                            placeholder="เช่น B.S. Computer Engineering"
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Experience */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">ประสบการณ์ (Experience / Projects)</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setResumeData({...resumeData, experience: [...resumeData.experience, { title: "", company: "", description: "" }]})}
+                    className="h-8 gap-1.5 text-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> เพิ่ม
+                  </Button>
+                </div>
+                {resumeData.experience.length === 0 && <p className="text-sm text-muted-foreground italic">ไม่พบข้อมูล</p>}
+                
+                <div className="flex flex-col gap-4">
+                  {resumeData.experience.map((exp, idx) => (
+                    <Card key={idx} className="bg-accent/20">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex justify-end">
+                           <button 
+                              onClick={() => {
+                                const newExp = resumeData.experience.filter((_, i) => i !== idx);
+                                setResumeData({...resumeData, experience: newExp});
+                              }}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                           <div className="space-y-1">
+                            <Label className="text-xs">ตำแหน่ง / บทบาท</Label>
+                            <Input 
+                              value={exp.title || ""} 
+                              onChange={(e) => {
+                                 const newExp = [...resumeData.experience];
+                                 newExp[idx].title = e.target.value;
+                                 setResumeData({...resumeData, experience: newExp});
+                              }} 
+                              placeholder="เช่น Frontend Developer"
+                            />
+                           </div>
+                           <div className="space-y-1">
+                            <Label className="text-xs">องค์กร / ค่าย / งาน</Label>
+                            <Input 
+                              value={exp.company || ""} 
+                              onChange={(e) => {
+                                 const newExp = [...resumeData.experience];
+                                 newExp[idx].company = e.target.value;
+                                 setResumeData({...resumeData, experience: newExp});
+                              }} 
+                              placeholder="เช่น Google, Startup, กีฬาสี"
+                            />
+                           </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">รายละเอียด</Label>
+                          <Textarea 
+                            rows={2}
+                            value={exp.description || ""} 
+                            onChange={(e) => {
+                               const newExp = [...resumeData.experience];
+                               newExp[idx].description = e.target.value;
+                               setResumeData({...resumeData, experience: newExp});
+                            }} 
+                            placeholder="รายละเอียดงานที่ทำ..."
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
             </CardContent>
+            <CardFooter className="border-t bg-muted/20 p-6 flex justify-end gap-3">
+               <Button variant="ghost">ข้าม / ยกเลิก</Button>
+               <Button className="gap-2">
+                  <Save className="h-4 w-4" /> บันทึก Profile
+               </Button>
+            </CardFooter>
           </Card>
         )}
       </div>
