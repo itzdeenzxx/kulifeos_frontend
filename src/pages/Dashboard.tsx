@@ -5,14 +5,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
-import { ArrowRight, Calendar, FolderKanban, Flame, Trophy, Sparkles, TrendingUp } from "lucide-react";
-import { skillData, skillTags, careerRecommendation, deadlines, activeProjects, userProfile } from "@/lib/mockData";
+import { ArrowRight, Calendar, FolderKanban, Flame, Trophy, Sparkles, TrendingUp, Hand } from "lucide-react";
+import { useSkillData, skillTagsDefault as skillTags, useCareerRecommendation, useDeadlines, useActiveProjects, useCurrentUserProfile } from "@/lib/db";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
+  const { data: skillData = [] } = useSkillData();
+  const { data: careerRecommendation } = useCareerRecommendation();
+  const { data: deadlines = [] } = useDeadlines();
+  const { data: activeProjects = [] } = useActiveProjects();
+  const { profile: userProfile } = useCurrentUserProfile();
+
   const navigate = useNavigate();
-  const totalProgress = Math.round(activeProjects.reduce((a, p) => a + p.progress, 0) / activeProjects.length);
+  const validProjects = activeProjects && activeProjects.length > 0 ? activeProjects : [];
+  const totalProgress = validProjects.length > 0 ? Math.round(validProjects.reduce((a, p) => a + (p.progress || 0), 0) / validProjects.length) : 0;
 
   return (
     <AppLayout title="Dashboard" hideHeader>
@@ -29,9 +36,9 @@ const Dashboard = () => {
             <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/8" />
             <div className="absolute -bottom-4 -left-4 h-24 w-24 rounded-full bg-white/5" />
             <div className="relative z-10">
-              <p className="text-sm font-medium opacity-80">สวัสดี 👋</p>
-              <h2 className="mt-0.5 text-[26px] font-extrabold leading-tight">{userProfile.name.split(" ")[0]}</h2>
-              <p className="mt-1.5 text-sm opacity-70">ทักษะของคุณกำลังเติบโต ✨</p>
+              <p className="text-sm font-medium opacity-80">สวัสดี <Hand className="h-4 w-4 inline" /></p>
+              <h2 className="mt-0.5 text-[26px] font-extrabold leading-tight">{userProfile?.name?.split(" ")[0] || "คุณ"}</h2>
+              <p className="mt-1.5 text-sm opacity-70">ทักษะของคุณกำลังเติบโต <Sparkles className="h-4 w-4 inline ml-1 text-yellow-500" /></p>
 
               <div className="mt-5 grid grid-cols-3 gap-2">
                 {[
@@ -149,7 +156,7 @@ const Dashboard = () => {
         {/* ========== DESKTOP LAYOUT ========== */}
         <div className="hidden md:block">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-foreground">Welcome back, {userProfile.name.split(" ")[0]} 👋</h2>
+            <h2 className="text-2xl font-bold text-foreground">Welcome back, {userProfile?.name?.split(" ")[0] || "คุณ"} <Hand className="h-5 w-5 inline ml-1" /></h2>
             <p className="text-muted-foreground">Your skills are growing. Keep building your future.</p>
           </div>
 

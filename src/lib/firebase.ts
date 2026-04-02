@@ -3,6 +3,7 @@ import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -29,4 +30,7 @@ const rtdb = getDatabase(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
-export { app, analytics, db, rtdb, auth, googleProvider };
+// Initialize Cloud Storage
+const storage = getStorage(app);
+
+export { app, analytics, db, rtdb, auth, googleProvider, storage };

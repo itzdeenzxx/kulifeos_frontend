@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Users, CheckCircle, Clock, QrCode, MoreVertical, Sparkles, ChevronRight } from "lucide-react";
-import { teacherActivities } from "@/lib/mockData";
+import { useTeacherActivities } from "@/lib/db";
 import { ClassroomQRDialog } from "@/components/teacher/ClassroomQRDialog";
 import { motion } from "framer-motion";
 import {
@@ -28,6 +28,7 @@ const bannerColors = [
 ];
 
 const TeacherDashboard = () => {
+  const { data: teacherActivities = [] } = useTeacherActivities();
   const [qrActivity, setQrActivity] = useState<{ id: number; name: string } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 

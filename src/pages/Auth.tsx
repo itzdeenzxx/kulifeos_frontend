@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, EyeOff, GraduationCap, BookOpen, ArrowRight, Sparkles } from "lucide-react";
+import { Eye, EyeOff, GraduationCap, BookOpen, ArrowRight, Sparkles, Hand, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,8 +115,12 @@ const Auth = () => {
 
       if (userSnap.exists()) {
         const userData = userSnap.data();
-        localStorage.setItem("ku_current_user", JSON.stringify(userData));
-        navigate(userData.role === "teacher" ? "/teacher" : "/dashboard");
+        // Redirect based on onboarding completion
+        if (userData.onboardingStep >= 4) {
+          navigate(userData.role === "teacher" ? "/teacher" : "/dashboard");
+        } else {
+          navigate("/onboarding");
+        }
       } else {
         setKuUserUID(user.uid);
         setKuUserEmail(user.email || "");
@@ -146,10 +150,13 @@ const Auth = () => {
         email: kuUserEmail,
         role: "student",
         studentId: studentId,
+        onboardingStep: 0,
+        onboardingData: {},
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
 
       await setDoc(doc(db, "users", kuUserUID), newUser);
-      localStorage.setItem("ku_current_user", JSON.stringify(newUser));
       navigate("/onboarding");
     } catch (err: any) {
       console.error(err);
@@ -170,8 +177,12 @@ const Auth = () => {
 
       if (userSnap.exists()) {
         const userData = userSnap.data();
-        localStorage.setItem("ku_current_user", JSON.stringify(userData));
-        navigate(userData.role === "teacher" ? "/teacher" : "/dashboard");
+        // Redirect based on onboarding completion
+        if (userData.onboardingStep >= 4) {
+          navigate(userData.role === "teacher" ? "/teacher" : "/dashboard");
+        } else {
+          navigate("/onboarding");
+        }
       } else {
         setError("ไม่พบข้อมูลผู้ใช้ในระบบ");
       }
@@ -201,10 +212,13 @@ const Auth = () => {
         uid: result.user.uid,
         email,
         role,
+        onboardingStep: 0,
+        onboardingData: {},
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
 
       await setDoc(doc(db, "users", result.user.uid), newUser);
-      localStorage.setItem("ku_current_user", JSON.stringify(newUser));
       navigate(role === "teacher" ? "/teacher" : "/onboarding");
     } catch (err: any) {
       console.error(err);
@@ -418,7 +432,7 @@ const Auth = () => {
               {[
                 { n: "500+", label: "นิสิต KU" },
                 { n: "120+", label: "โปรเจกต์" },
-                { n: "4.9★", label: "คะแนน" },
+                { n: <>4.9<Star className="h-3 w-3 ml-1 inline text-yellow-500 fill-current" /></>, label: "คะแนน" },
                 { n: "AI", label: "Powered" },
               ].map((s) => (
                 <div key={s.label} className="rounded-xl bg-white/10 px-4 py-3">
@@ -429,7 +443,7 @@ const Auth = () => {
             </div>
           </div>
           <p className="relative z-10 text-xs text-primary-foreground/40">
-            © 2026 KU LifeOS — Kasetsart University
+            &copy; 2026 KU LifeOS — Kasetsart University
           </p>
         </div>
 
@@ -437,7 +451,7 @@ const Auth = () => {
           <div className="w-full max-w-md">
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-foreground">
-                {tab === "login" ? "ยินดีต้อนรับกลับมา 👋" : "เริ่มต้นใช้งาน 🎓"}
+                {tab === "login" ? <>ยินดีต้อนรับกลับมา <Hand className="h-5 w-5 inline ml-1" /></> : <>เริ่มต้นใช้งาน <GraduationCap className="h-5 w-5 inline ml-1" /></>}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {tab === "login"
@@ -484,7 +498,7 @@ const Auth = () => {
             AI-Powered Student Platform
           </div>
           <p className="mt-2 text-lg font-bold text-primary-foreground">
-            {tab === "login" ? "ยินดีต้อนรับกลับมา 👋" : "เริ่มต้นการเดินทาง 🎓"}
+            {tab === "login" ? <>ยินดีต้อนรับกลับมา <Hand className="h-5 w-5 inline ml-1" /></> : <>เริ่มต้นการเดินทาง <GraduationCap className="h-5 w-5 inline ml-1" /></>}
           </p>
           <p className="text-sm text-primary-foreground/70">
             {tab === "login" ? "เข้าสู่ระบบเพื่อดำเนินการต่อ" : "สร้างบัญชีและเริ่มต้นใช้งาน"}

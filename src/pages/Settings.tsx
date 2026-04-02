@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { PageTransition, StaggerContainer, StaggerItem } from "@/components/MotionWrappers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,21 +8,36 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Camera, Save, Bell, Globe, Shield, ChevronRight, Moon, Sun, LogOut } from "lucide-react";
-import { userProfile } from "@/lib/mockData";
+import { Camera, Save, Bell, Globe, Shield, ChevronRight, Moon, Sun, LogOut, Monitor } from "lucide-react";
+import { useCurrentUserProfile } from "@/lib/db";
 import { motion } from "framer-motion";
 import { useTheme } from "@/hooks/use-theme";
 import { useToast } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
 import { LogoutDialog } from "@/components/LogoutDialog";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { doc, updateDoc } from "firebase/firestore";
+import { storage, db } from "@/lib/firebase";
+import { useAuth } from "@/hooks/useAuth";
 
 const Settings = () => {
+  const { authUser } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { profile: userProfile } = useCurrentUserProfile();
   const { toast } = useToast();
-  const [name, setName] = useState(userProfile.name);
-  const [faculty, setFaculty] = useState(userProfile.faculty);
-  const [bio, setBio] = useState(userProfile.bio);
+  const [name, setName] = useState(userProfile?.name || "");
+  const [faculty, setFaculty] = useState(userProfile?.faculty || "");
+  const [bio, setBio] = useState(userProfile?.bio || "");
+
+  useEffect(() => {
+    if (userProfile) {
+      setName(userProfile.name || "");
+      setFaculty(userProfile.faculty || "");
+      setBio(userProfile.bio || "");
+    }
+  }, [userProfile]);
   const [language, setLanguage] = useState("th");
   const [emailNotif, setEmailNotif] = useState(true);
   const [lineNotif, setLineNotif] = useState(true);
@@ -42,11 +57,38 @@ const Settings = () => {
   };
 
   const handleCamera = () => {
-    toast({ title: "อัพโหลดรูปโปรไฟล์", description: "ฟีเจอร์นี้จะพร้อมใช้งานเร็วๆ นี้" });
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !authUser) return;
+
+    try {
+      toast({ title: "กำลังอัปโหลดรูปภาพ...", description: "กรุณารอสักครู่" });
+      const avatarRef = storageRef(storage, `users/${authUser.uid}/avatar`);
+      await uploadBytes(avatarRef, file);
+      const photoURL = await getDownloadURL(avatarRef);
+
+      const userDocRef = doc(db, "users", authUser.uid);
+      await updateDoc(userDocRef, { photoURL });
+
+      toast({ title: "อัปโหลดสำเร็จ ✓", description: "รูปโปรไฟล์ของคุณได้รับการอัปเดตแล้ว" });
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+      toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถอัปโหลดรูปภาพได้", variant: "destructive" });
+    }
   };
 
   return (
     <AppLayout title="Settings">
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        className="hidden"
+      />
       <LogoutDialog open={logoutOpen} onConfirm={confirmLogout} onCancel={cancelLogout} />
       <PageTransition>
         {/* ========== MOBILE - iOS Settings style ========== */}
@@ -56,7 +98,8 @@ const Settings = () => {
             <div className="flex items-center gap-3.5 rounded-2xl border border-border/50 bg-card p-4">
               <div className="relative">
                 <Avatar className="h-14 w-14">
-                  <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">{userProfile.avatar}</AvatarFallback>
+                  <AvatarImage src={userProfile?.photoURL || userProfile?.avatar} />
+                  <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">{userProfile?.avatar}</AvatarFallback>
                 </Avatar>
                 <button onClick={handleCamera} className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md">
                   <Camera className="h-3 w-3" />
@@ -104,8 +147,8 @@ const Settings = () => {
                 <Select value={language} onValueChange={setLanguage}>
                   <SelectTrigger className="w-32 h-8 rounded-xl border-border/50 text-[13px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="th">🇹🇭 ไทย</SelectItem>
-                    <SelectItem value="en">🇺🇸 English</SelectItem>
+                    <SelectItem value="th"><span className="mr-2 font-semibold text-primary">TH</span> ไทย</SelectItem>
+                    <SelectItem value="en"><span className="mr-2 font-semibold text-primary">EN</span> English</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -117,9 +160,9 @@ const Settings = () => {
                 <Select value={theme} onValueChange={(v) => setTheme(v as "light" | "dark" | "system")}>
                   <SelectTrigger className="w-28 h-8 rounded-xl border-border/50 text-[13px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="light">☀️ Light</SelectItem>
-                    <SelectItem value="dark">🌙 Dark</SelectItem>
-                    <SelectItem value="system">🖥️ System</SelectItem>
+                    <SelectItem value="light"><Sun className="h-4 w-4" /> Light</SelectItem>
+                    <SelectItem value="dark"><Moon className="h-4 w-4" /> Dark</SelectItem>
+                    <SelectItem value="system"><Monitor className="h-4 w-4" />️ System</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -184,9 +227,10 @@ const Settings = () => {
                   <div className="flex items-center gap-4">
                     <div className="relative">
                       <Avatar className="h-20 w-20">
-                        <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">{userProfile.avatar}</AvatarFallback>
+                        <AvatarImage src={userProfile?.photoURL || userProfile?.avatar} />
+                        <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">{userProfile?.avatar}</AvatarFallback>
                       </Avatar>
-                      <button className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform hover:scale-110">
+                      <button onClick={handleCamera} className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform hover:scale-110">
                         <Camera className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -255,8 +299,8 @@ const Settings = () => {
                     <Select value={language} onValueChange={setLanguage}>
                       <SelectTrigger className="w-40 rounded-xl border-border/50"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="th">🇹🇭 ภาษาไทย</SelectItem>
-                        <SelectItem value="en">🇺🇸 English</SelectItem>
+                        <SelectItem value="th">TH ภาษาไทย</SelectItem>
+                        <SelectItem value="en"><span className="mr-2 font-semibold text-primary">EN</span> English</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -268,9 +312,9 @@ const Settings = () => {
                     <Select value={theme} onValueChange={(v) => setTheme(v as "light" | "dark" | "system")}>
                       <SelectTrigger className="w-36 rounded-xl border-border/50"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="light">☀️ Light</SelectItem>
-                        <SelectItem value="dark">🌙 Dark</SelectItem>
-                        <SelectItem value="system">🖥️ System</SelectItem>
+                        <SelectItem value="light"><Sun className="h-4 w-4" /> Light</SelectItem>
+                        <SelectItem value="dark"><Moon className="h-4 w-4" /> Dark</SelectItem>
+                        <SelectItem value="system"><Monitor className="h-4 w-4" />️ System</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

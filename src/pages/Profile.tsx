@@ -4,50 +4,63 @@ import { PageTransition, StaggerContainer, StaggerItem } from "@/components/Moti
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
 import { Pencil, Briefcase, Award, ChevronRight } from "lucide-react";
-import { skillData, skillTags, userProfile as mockUserProfile, portfolioProjects as mockProjects, experienceTimeline as mockTimeline } from "@/lib/mockData";
+import { useCurrentUserProfile, useSkillData, skillTagsDefault as skillTags, usePortfolioProjects, useExperienceTimeline } from "@/lib/db";
 import { motion } from "framer-motion";
 
-// Load persisted onboarding data or fall back to mock
-const storedRaw = localStorage.getItem("ku_profile");
-const stored = storedRaw ? JSON.parse(storedRaw) : null;
-
-const userProfile = stored ? {
-  name: stored.name || mockUserProfile.name,
-  faculty: [stored.faculty, stored.major].filter(Boolean).join(" — ") || mockUserProfile.faculty,
-  year: stored.year || mockUserProfile.year,
-  avatar: stored.avatar || mockUserProfile.avatar,
-  bio: stored.bio || mockUserProfile.bio,
-} : mockUserProfile;
-
-const allSkillTags: string[] = stored?.skills?.length
-  ? [...stored.skills, ...(stored.interests ?? [])].slice(0, 12)
-  : [...skillTags, "Python", "React", "TensorFlow", "SQL", "Figma"];
-
-const radarData = stored?.radarData ?? skillData;
-
-const portfolioProjects = stored?.projects?.length
-  ? stored.projects.map((p: any) => ({
-      title: p.name,
-      description: p.desc,
-      tech: p.tech ? p.tech.split(",").map((t: string) => t.trim()) : [],
-      status: "In Progress",
-    }))
-  : mockProjects;
-
-const experienceTimeline = stored?.experiences?.length
-  ? stored.experiences.map((e: any) => ({
-      year: e.year || "2026",
-      title: e.title,
-      org: e.org,
-      description: e.desc,
-    }))
-  : mockTimeline;
-
 const Profile = () => {
+  const { profile: mockUserProfile } = useCurrentUserProfile();
+  const { data: skillData = [] } = useSkillData();
+  const { data: mockProjects = [] } = usePortfolioProjects();
+  const { data: mockTimeline = [] } = useExperienceTimeline();
+
   const navigate = useNavigate();
+
+  // Load persisted onboarding data or fall back to mock
+  const storedRaw = localStorage.getItem("ku_profile");
+  const stored = storedRaw ? JSON.parse(storedRaw) : null;
+
+  const userProfile = stored ? {
+    name: stored.name || mockUserProfile.name,
+    faculty: [stored.faculty, stored.major].filter(Boolean).join(" — ") || mockUserProfile.faculty,
+    year: stored.year || mockUserProfile.year,
+    avatar: stored.avatar || mockUserProfile.avatar,
+    bio: stored.bio || mockUserProfile.bio,
+  } : mockUserProfile;
+
+  const allSkillTags: string[] = stored?.skills?.length
+    ? [...stored.skills, ...(stored.interests ?? [])].slice(0, 12)
+    : [...skillTags, "Python", "React", "TensorFlow", "SQL", "Figma"];
+
+  const radarData = stored?.radarData ?? skillData;
+  const techRadarData = stored?.techRadarData ?? [
+    { skill: "Frontend", value: 80, fullMark: 100 },
+    { skill: "Backend", value: 65, fullMark: 100 },
+    { skill: "Design", value: 70, fullMark: 100 },
+    { skill: "Database", value: 60, fullMark: 100 },
+    { skill: "Testing", value: 50, fullMark: 100 },
+  ];
+
+  const portfolioProjects = stored?.projects?.length
+    ? stored.projects.map((p: any) => ({
+        title: p.name,
+        description: p.desc,
+        tech: p.tech ? p.tech.split(",").map((t: string) => t.trim()) : [],
+        status: "In Progress",
+      }))
+    : mockProjects;
+
+  const experienceTimeline = stored?.experiences?.length
+    ? stored.experiences.map((e: any) => ({
+        year: e.year || "2026",
+        title: e.title,
+        org: e.org,
+        description: e.desc,
+      }))
+    : mockTimeline;
+
   return (
     <AppLayout title="Profile" hideHeader>
       <PageTransition>
@@ -60,7 +73,8 @@ const Profile = () => {
             className="flex flex-col items-center pt-2"
           >
             <Avatar className="h-20 w-20 ring-4 ring-primary/10">
-              <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
+              <AvatarImage src={userProfile?.photoURL || userProfile?.avatar} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
                 {userProfile.avatar}
               </AvatarFallback>
             </Avatar>
@@ -91,7 +105,7 @@ const Profile = () => {
 
           {/* Skill Radar - compact */}
           <div className="rounded-2xl border border-border/50 bg-card p-4">
-            <h3 className="mb-1 text-[15px] font-bold text-foreground">Skill Radar</h3>
+            <h3 className="mb-1 text-[15px] font-bold text-foreground">Soft Skills Radar</h3>
             <div className="mx-auto h-48 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={radarData}>
@@ -99,6 +113,18 @@ const Profile = () => {
                   <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
                   <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                   <Radar dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.15} strokeWidth={2} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <h3 className="mt-4 mb-1 text-[15px] font-bold text-foreground">Hard Skills Radar</h3>
+            <div className="mx-auto h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={techRadarData}>
+                  <PolarGrid stroke="hsl(var(--border))" />
+                  <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                  <Radar dataKey="value" stroke="hsl(var(--chart-2, 210 100% 50%))" fill="hsl(var(--chart-2, 210 100% 50%))" fillOpacity={0.15} strokeWidth={2} />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
@@ -170,6 +196,7 @@ const Profile = () => {
             <Card className="mb-6 rounded-2xl border-border/50">
               <CardContent className="flex flex-col items-center gap-4 p-6 sm:flex-row sm:items-start">
                 <Avatar className="h-20 w-20">
+                  <AvatarImage src={userProfile?.photoURL || userProfile?.avatar} />
                   <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">{userProfile.avatar}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 text-center sm:text-left">
@@ -184,10 +211,10 @@ const Profile = () => {
             </Card>
           </StaggerItem>
 
-          <StaggerContainer className="grid gap-6 lg:grid-cols-2">
+          <StaggerContainer className="grid gap-6 lg:grid-cols-3">
             <StaggerItem>
               <Card className="rounded-2xl border-border/50">
-                <CardHeader><CardTitle>Skill Radar</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Soft Skills Radar</CardTitle></CardHeader>
                 <CardContent>
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
@@ -196,6 +223,23 @@ const Profile = () => {
                         <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                         <Radar dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.15} strokeWidth={2} />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </StaggerItem>
+            <StaggerItem>
+              <Card className="rounded-2xl border-border/50">
+                <CardHeader><CardTitle>Hard Skills Radar</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart data={techRadarData}>
+                        <PolarGrid stroke="hsl(var(--border))" />
+                        <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                        <Radar dataKey="value" stroke="hsl(var(--chart-2, 210 100% 50%))" fill="hsl(var(--chart-2, 210 100% 50%))" fillOpacity={0.15} strokeWidth={2} />
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>

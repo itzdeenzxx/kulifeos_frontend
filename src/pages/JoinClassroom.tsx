@@ -2,21 +2,22 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { CheckCircle, GraduationCap, Users, Hash, ArrowRight } from "lucide-react";
+import { CheckCircle, GraduationCap, Users, Hash, ArrowRight, PartyPopper } from "lucide-react";
 import { useState } from "react";
-import { teacherActivities } from "@/lib/mockData";
+import { useTeacherActivities } from "@/lib/db";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
 const JoinClassroom = () => {
+  const { data: teacherActivities = [] } = useTeacherActivities();
   const { classroomId } = useParams();
   const navigate = useNavigate();
   const [joined, setJoined] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [mode, setMode] = useState<"info" | "code">(classroomId ? "info" : "code");
 
-  const classroom = classroomId
-    ? teacherActivities.find((a) => a.id === Number(classroomId))
+  const classroom = classroomId && teacherActivities.length > 0
+    ? teacherActivities.find((a: any) => a.id === Number(classroomId))
     : null;
 
   const handleCodeJoin = () => {
@@ -107,7 +108,7 @@ const JoinClassroom = () => {
                   >
                     <CheckCircle className="mx-auto mb-3 h-16 w-16 text-primary-foreground" />
                   </motion.div>
-                  <h2 className="text-2xl font-extrabold text-primary-foreground">เข้าร่วมสำเร็จ! 🎉</h2>
+                  <h2 className="text-2xl font-extrabold text-primary-foreground">เข้าร่วมสำเร็จ! <PartyPopper className="h-6 w-6 inline ml-1" /></h2>
                   <p className="mt-2 text-sm text-primary-foreground/80">คุณเข้าร่วม {classroom.name} แล้ว</p>
                 </div>
                 <CardContent className="p-6">

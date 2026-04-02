@@ -4,10 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { TrendingUp, Target, Zap, ChevronRight } from "lucide-react";
-import { careerRecommendation, skillGapData, growthTimeline } from "@/lib/mockData";
+import { useCareerRecommendation, useSkillGapData, useGrowthTimeline } from "@/lib/db";
 import { motion } from "framer-motion";
 
 const CareerInsights = () => {
+  const { data: careerRecommendation } = useCareerRecommendation();
+  const { data: skillGapData = [] } = useSkillGapData();
+  const { data: growthTimeline = [] } = useGrowthTimeline();
+
+  if (!careerRecommendation) return <AppLayout title="Career"><div className="p-4">Loading...</div></AppLayout>;
+
   return (
     <AppLayout title="Career">
       <PageTransition>

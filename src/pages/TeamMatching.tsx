@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Search, UserPlus, Check } from "lucide-react";
-import { teammates } from "@/lib/mockData";
+import { useTeammates } from "@/lib/db";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
 const filterChips = ["All", "AI", "Finance", "Marketing", "Design", "Data"];
 
 const TeamMatching = () => {
+  const { data: teammates } = useTeammates();
   const { toast } = useToast();
   const [activeFilter, setActiveFilter] = useState("All");
   const [search, setSearch] = useState("");

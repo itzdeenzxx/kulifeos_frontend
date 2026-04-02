@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Users, Brain, QrCode, ArrowLeft, CheckCircle, Clock, Trash2, UserPlus, FolderKanban, Circle, CheckCircle2 } from "lucide-react";
-import { teacherActivities, teacherStudents, myProjectSpaces } from "@/lib/mockData";
+import { useTeacherActivities, useTeacherStudents, useProjectSpaces } from "@/lib/db";
 import { ClassroomQRDialog } from "@/components/teacher/ClassroomQRDialog";
 import { motion } from "framer-motion";
 
@@ -22,6 +22,10 @@ const bannerColors = [
 ];
 
 const ClassroomDetail = () => {
+  const { data: teacherActivities = [] } = useTeacherActivities();
+  const { data: teacherStudents = [] } = useTeacherStudents();
+  const { data: myProjectSpaces = [] } = useProjectSpaces();
+
   const { classroomId } = useParams();
   const [qrOpen, setQrOpen] = useState(false);
 

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -6,14 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import {
-  Upload, FileText, CheckCircle, Brain, Sparkles,
-  ChevronRight, ChevronLeft, Plus, X, User, Briefcase,
-  Zap, GraduationCap, Star, ArrowRight,
-} from "lucide-react";
+import { Upload, FileText, CheckCircle, Brain, Sparkles, ChevronRight, ChevronLeft, Plus, X, User, Briefcase, Zap, GraduationCap, Star, ArrowRight, Loader2, Hand, ClipboardList, Target, Rocket, PartyPopper, RefreshCw, Lock } from "lucide-react";
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer,
 } from "recharts";
+import { useAuth } from "@/hooks/useAuth";
+import { db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { doc, updateDoc } from "firebase/firestore";
+import { extractTextFromPDF, getPdfFirstPageAsImage } from "@/lib/pdfExtractor";
+import { analyzeResumeWithAI, cleanResumeText, ParsedResume, generateProfileAnalysis, generateShortBio } from "@/lib/aiAnalyze";
 
 /* ─── Types ─────────────────────────────────────────── */
 interface OnboardingData {
@@ -27,18 +29,24 @@ interface OnboardingData {
 
 /* ─── Constants ─────────────────────────────────────── */
 const SKILL_OPTIONS = [
-  "AI & Machine Learning", "Data Analysis", "Python", "React / Frontend",
-  "Leadership", "Marketing", "Finance", "Design / UX",
-  "Research", "Backend Dev", "IoT", "Communication",
+  "Python", "React / Frontend", "Leadership", "Marketing", "Finance", 
+  "Design / UX", "Research", "Backend Dev", "IoT", "Communication", 
+  "Data Analysis", "AI & Machine Learning", "Project Management", 
+  "Problem Solving", "Cloud Computing", "Mobile Dev", "Cybersecurity", 
+  "SEO/SEM", "Content Creation", "Public Speaking"
 ];
 const INTEREST_OPTIONS = [
-  "Startup", "AI Research", "Product Management", "UX Design",
-  "Data Science", "Finance Tech", "Agri-Tech", "EdTech",
+  "Startup", "AI Research", "Product Management", "UX Design", 
+  "Data Science", "Finance Tech", "Agri-Tech", "EdTech", 
   "Healthcare", "Sustainability", "Robotics", "Blockchain",
+  "E-commerce", "Game Development", "Green Energy", "Social Impact", 
+  "Space Tech"
 ];
 const FACULTIES = [
   "วิศวกรรมศาสตร์", "เกษตร", "บริหารธุรกิจ", "วิทยาศาสตร์",
   "เทคโนโลยีสารสนเทศ", "เศรษฐศาสตร์", "สังคมศาสตร์", "มนุษยศาสตร์",
+  "ศึกษาศาสตร์", "แพทยศาสตร์", "เภสัชศาสตร์", "พยาบาลศาสตร์",
+  "สถาปัตยกรรมศาสตร์", "นิติศาสตร์", "นิเทศศาสตร์", "ศิลปกรรมศาสตร์", "อื่นๆ"
 ];
 const YEARS = ["ปี 1", "ปี 2", "ปี 3", "ปี 4", "ปี 5+", "บัณฑิตศึกษา"];
 
@@ -133,37 +141,48 @@ const StepContent = ({
   toggleSkill, toggleInterest,
   addExperience, addProject,
   radarData, generatedTags, isAnalyzing,
+  isParsingResume, analysisText,
+  techRadarData,
 }: any) => {
+
+  /* Step 4 — AI Result Loading */
+  if (isAnalyzing) return <AILoadingScreen />;
 
   /* Step 0 — Resume Upload */
   if (step === 0) return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">สวัสดี! 👋</h2>
+        <h2 className="text-2xl font-bold text-foreground">สวัสดี! <Hand className="h-6 w-6 inline ml-2 text-primary" /></h2>
         <p className="mt-1 text-sm text-muted-foreground">
           อัพโหลด Resume หรือ Transcript ให้ AI ดึงข้อมูลอัตโนมัติ หรือจะข้ามแล้วกรอกเองก็ได้
         </p>
       </div>
       <div
-        onClick={() => fileInputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onClick={() => { if (!isParsingResume) fileInputRef.current?.click(); }}
+        onDragOver={(e) => { e.preventDefault(); if (!isParsingResume) setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
-        onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFileChange(e.dataTransfer.files[0] ?? null); }}
+        onDrop={(e) => { e.preventDefault(); setIsDragging(false); if (!isParsingResume) handleFileChange(e.dataTransfer.files[0] ?? null); }}
         className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-10 transition-all duration-200 ${
           isDragging ? "border-primary bg-primary/5 scale-[1.02]"
           : data.resumeFile ? "border-primary/60 bg-primary/5"
           : "border-border/50 bg-muted/30 hover:border-primary/30 hover:bg-muted/50"
-        }`}
+        } ${isParsingResume ? "pointer-events-none opacity-80" : ""}`}
       >
-        <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx" className="hidden"
+        <input ref={fileInputRef} type="file" accept=".pdf,.txt,image/*" className="hidden"
           onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)} />
         {data.resumeFile ? (
           <>
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-              <CheckCircle className="h-7 w-7 text-primary" />
+              {isParsingResume ? (
+                <Loader2 className="h-7 w-7 text-primary animate-spin" />
+              ) : (
+                <CheckCircle className="h-7 w-7 text-primary" />
+              )}
             </div>
             <p className="text-sm font-semibold text-primary text-center">{data.resumeFile.name}</p>
-            <p className="text-xs text-muted-foreground mt-1">AI กำลังดึงข้อมูล… ✨</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isParsingResume ? "AI กำลังดึงข้อมูล…" : "ดึงข้อมูลสำเร็จ"}
+            </p>
           </>
         ) : (
           <>
@@ -171,14 +190,15 @@ const StepContent = ({
               <Upload className="h-7 w-7 text-primary" />
             </div>
             <p className="text-sm font-semibold text-foreground">ลากหรือคลิกเพื่ออัพโหลด</p>
-            <p className="text-xs text-muted-foreground mt-1">PDF, DOC, DOCX — สูงสุด 10MB</p>
+            <p className="text-xs text-muted-foreground mt-1">PDF, TXT, Image — สูงสุด 10MB</p>
           </>
         )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         {[{ icon: FileText, label: "Resume" }, { icon: GraduationCap, label: "Transcript" }].map(({ icon: Icon, label }) => (
-          <button key={label} onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center gap-2 rounded-2xl border border-border/50 bg-card p-4 text-sm font-medium text-foreground transition-all hover:border-primary/40 hover:bg-accent/40 active:scale-95">
+          <button key={label} onClick={() => !isParsingResume && fileInputRef.current?.click()}
+            disabled={isParsingResume}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-border/50 bg-card p-4 text-sm font-medium text-foreground transition-all hover:border-primary/40 hover:bg-accent/40 active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
             <Icon className="h-5 w-5 text-primary" />{label}
           </button>
         ))}
@@ -203,7 +223,7 @@ const StepContent = ({
   if (step === 1) return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">ข้อมูลส่วนตัว 📋</h2>
+        <h2 className="text-2xl font-bold text-foreground">ข้อมูลส่วนตัว <ClipboardList className="h-6 w-6 inline ml-2 text-primary" /></h2>
         <p className="mt-1 text-sm text-muted-foreground">ตรวจสอบหรือกรอกข้อมูลของคุณ</p>
       </div>
       <div className="space-y-3">
@@ -271,7 +291,7 @@ const StepContent = ({
   if (step === 2) return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">ทักษะ & ความสนใจ 🎯</h2>
+        <h2 className="text-2xl font-bold text-foreground">ทักษะ & ความสนใจ <Target className="h-6 w-6 inline ml-2 text-primary" /></h2>
         <p className="mt-1 text-sm text-muted-foreground">เลือกอย่างน้อย 1 ทักษะ เพื่อให้ AI วิเคราะห์แม่นยำ</p>
       </div>
       <div>
@@ -336,7 +356,7 @@ const StepContent = ({
   if (step === 3) return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">ประสบการณ์ & โปรเจกต์ 🚀</h2>
+        <h2 className="text-2xl font-bold text-foreground">ประสบการณ์ & โปรเจกต์ <Rocket className="h-6 w-6 inline ml-2 text-primary" /></h2>
         <p className="mt-1 text-sm text-muted-foreground">กรอกเพิ่มเติมหรือข้ามได้เลย</p>
       </div>
       <div>
@@ -418,13 +438,13 @@ const StepContent = ({
         <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
           <Sparkles className="h-8 w-8 text-primary" />
         </div>
-        <h2 className="text-2xl font-bold text-foreground">โปรไฟล์พร้อมแล้ว! 🎉</h2>
+        <h2 className="text-2xl font-bold text-foreground">โปรไฟล์พร้อมแล้ว! <PartyPopper className="h-6 w-6 inline ml-2 text-primary" /></h2>
         <p className="mt-1 text-sm text-muted-foreground">สวัสดี {data.firstName} {data.lastName}</p>
       </div>
       <div className="rounded-2xl border border-border/50 bg-card p-5">
         <div className="flex items-center gap-2 mb-3">
           <Brain className="h-4 w-4 text-primary" />
-          <p className="text-sm font-semibold text-foreground">Skill Radar</p>
+          <p className="text-sm font-semibold text-foreground">General Skills Radar (Soft Skills)</p>
         </div>
         <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
@@ -432,7 +452,24 @@ const StepContent = ({
               <PolarGrid stroke="hsl(var(--border))" />
               <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
               <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-              <Radar name="Skills" dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))"
+              <Radar name="General" dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))"
+                fillOpacity={0.15} strokeWidth={2} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border/50 bg-card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Target className="h-4 w-4 text-primary" />
+          <p className="text-sm font-semibold text-foreground">Technical Skills Radar (Hard Skills)</p>
+        </div>
+        <div className="h-52">
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart data={techRadarData}>
+              <PolarGrid stroke="hsl(var(--border))" />
+              <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
+              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+              <Radar name="Tech" dataKey="value" stroke="hsl(var(--chart-2, 210 100% 50%))" fill="hsl(var(--chart-2, 210 100% 50%))"
                 fillOpacity={0.15} strokeWidth={2} />
             </RadarChart>
           </ResponsiveContainer>
@@ -448,7 +485,13 @@ const StepContent = ({
             <Badge key={tag} className="rounded-full bg-primary/10 text-primary border-0 px-3 py-1.5 text-xs font-medium">{tag}</Badge>
           ))}
         </div>
-        <p className="mt-3 text-[11px] text-muted-foreground">🔄 แก้ไข Tags ได้ในหน้า Profile</p>
+        <p className="mt-3 text-[11px] text-muted-foreground"><RefreshCw className="h-3 w-3 inline mr-1" /> แก้ไข Tags ได้ในหน้า Profile</p>
+      </div>
+      <div className="rounded-2xl border border-border/50 bg-card p-4">
+        <p className="text-sm font-semibold text-foreground mb-2">บทวิเคราะห์จาก AI 🤖</p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {analysisText || "ข้อมูลโปรไฟล์ของคุณพร้อมแล้ว!"}
+        </p>
       </div>
       <div className="rounded-2xl border border-border/50 bg-card p-4">
         <p className="text-sm font-semibold text-foreground mb-2">สรุปโปรไฟล์</p>
@@ -475,6 +518,8 @@ const StepContent = ({
 ═══════════════════════════════════════════════════════ */
 const Onboarding = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const { userProfile, authUser } = useAuth();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>({
     resumeFile: null, firstName: "", lastName: "", studentId: "",
@@ -483,11 +528,62 @@ const Onboarding = () => {
   });
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isParsingResume, setIsParsingResume] = useState(false);
   const [radarData, setRadarData] = useState<any[]>([]);
+  const [techRadarData, setTechRadarData] = useState<any[]>([]);
   const [generatedTags, setGeneratedTags] = useState<string[]>([]);
+  const [analysisText, setAnalysisText] = useState<string>("");
   const [newSkillInput, setNewSkillInput] = useState("");
   const [newInterestInput, setNewInterestInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load saved onboarding data when component mounts
+  useEffect(() => {
+    if (userProfile && userProfile.onboardingData) {
+      const saved = userProfile.onboardingData;
+      setStep(userProfile.onboardingStep || 0);
+      setData((prevData) => ({
+        ...prevData,
+        firstName: saved.firstName || "",
+        lastName: saved.lastName || "",
+        studentId: saved.studentId || "",
+        faculty: saved.faculty || "",
+        major: saved.major || "",
+        year: saved.year || "",
+        bio: saved.bio || "",
+        selectedSkills: saved.selectedSkills || [],
+        interests: saved.interests || [],
+        experiences: saved.experiences || [],
+        projects: saved.projects || [],
+      }));
+    }
+  }, [userProfile]);
+
+  // Save progress to Firestore
+  const saveProgress = async (stepNum: number) => {
+    if (!authUser || !userProfile) return;
+    try {
+      await updateDoc(doc(db, "users", authUser.uid), {
+        onboardingStep: stepNum,
+        onboardingData: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          studentId: data.studentId,
+          faculty: data.faculty,
+          major: data.major,
+          year: data.year,
+          bio: data.bio,
+          selectedSkills: data.selectedSkills,
+          interests: data.interests,
+          experiences: data.experiences,
+          projects: data.projects,
+        },
+        updatedAt: Date.now(),
+      });
+    } catch (err) {
+      console.error("Failed to save progress:", err);
+    }
+  };
 
   const update = (patch: Partial<OnboardingData>) => setData((d) => ({ ...d, ...patch }));
   const totalInputSteps = 4;
@@ -499,40 +595,201 @@ const Onboarding = () => {
   const addExperience = () => update({ experiences: [...data.experiences, { title: "", org: "", year: "", desc: "" }] });
   const addProject = () => update({ projects: [...data.projects, { name: "", desc: "", tech: "" }] });
 
-  const handleFileChange = (file: File | null) => {
-    if (!file) return;
-    update({ resumeFile: file });
-    setTimeout(() => update({
-      firstName: "สมชาย", lastName: "เกษตรศาสตร์", studentId: "6410110001",
-      faculty: "วิศวกรรมศาสตร์", major: "วิศวกรรมคอมพิวเตอร์", year: "ปี 3",
-      bio: "สนใจด้าน AI และการประยุกต์ใช้ใน Agriculture & Education",
-      selectedSkills: ["Python", "AI & Machine Learning", "Data Analysis"],
-      experiences: [{ title: "AI Research Intern", org: "NECTEC Thailand", year: "2024", desc: "งานด้าน NLP สำหรับภาษาไทย" }],
-      projects: [{ name: "AI Crop Disease Detection", desc: "Deep learning ตรวจจับโรคพืชจากภาพ", tech: "Python, TensorFlow" }],
-    }), 800);
+  const splitName = (fullName: string) => {
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return { firstName: "", lastName: "" };
+    if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+    return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
   };
 
-  const handleAnalyze = () => {
-    setIsAnalyzing(true);
-    setStep(4);
-    const rd = generateRadarData();
-    const tags = generateTags(data.selectedSkills, data.interests);
-    const profilePayload = {
-      name: `${data.firstName} ${data.lastName}`.trim() || "นิสิต KU",
-      firstName: data.firstName, lastName: data.lastName,
-      studentId: data.studentId, faculty: data.faculty,
-      major: data.major, year: data.year, bio: data.bio,
-      skills: data.selectedSkills, interests: data.interests,
-      experiences: data.experiences, projects: data.projects,
-      radarData: rd, tags,
-      avatar: (data.firstName?.[0] ?? "K") + (data.lastName?.[0] ?? "U"),
+  const mapParsedToOnboarding = (parsed: ParsedResume, previous: OnboardingData): OnboardingData => {
+    const nameParts = splitName(parsed.name || "");
+    return {
+      ...previous,
+      firstName: parsed.name ? nameParts.firstName : previous.firstName,
+      lastName: parsed.name ? nameParts.lastName : previous.lastName,
+      faculty: parsed.faculty || previous.faculty,
+      major: parsed.major || previous.major,
+      selectedSkills: parsed.skills.length > 0 ? parsed.skills : previous.selectedSkills,
+      experiences:
+        parsed.experience.length > 0
+          ? parsed.experience.map((exp) => ({
+              title: exp.title || "",
+              org: exp.company || "",
+              year: "",
+              desc: exp.description || "",
+            }))
+          : previous.experiences,
+      projects: parsed.projects?.length > 0 
+        ? parsed.projects.map((p) => ({
+            name: p.name || "",
+            desc: p.description || "",
+            tech: p.tech || ""
+          }))
+        : previous.projects,
     };
-    localStorage.setItem("ku_profile", JSON.stringify(profilePayload));
+  };
+
+  const handleFileChange = async (file: File | null) => {
+    if (!file) return;
+
+    update({ resumeFile: file });
+    setIsParsingResume(true);
+
+    try {
+      const isPdf = file.type === "application/pdf";
+      const isTxt = file.type === "text/plain";
+      const isImage = file.type.startsWith("image/");
+
+      let parsed: ParsedResume;
+      let sourceType: "pdf-text" | "pdf-image" | "txt" | "image";
+      let cleanedText = "";
+
+      if (isPdf) {
+        const extracted = await extractTextFromPDF(file);
+        cleanedText = cleanResumeText(extracted);
+
+        if (cleanedText.length >= 120) {
+          parsed = await analyzeResumeWithAI({ content: cleanedText, mode: "pdfText" });
+          sourceType = "pdf-text";
+        } else {
+          const imageData = await getPdfFirstPageAsImage(file);
+          parsed = await analyzeResumeWithAI({ content: imageData, mode: "image" });
+          sourceType = "pdf-image";
+        }
+      } else if (isTxt) {
+        const rawText = await file.text();
+        cleanedText = cleanResumeText(rawText);
+        parsed = await analyzeResumeWithAI({ content: cleanedText, mode: "plainText" });
+        sourceType = "txt";
+      } else if (isImage) {
+        const imageData = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve((e.target?.result as string) || "");
+          reader.readAsDataURL(file);
+        });
+        parsed = await analyzeResumeWithAI({ content: imageData, mode: "image" });
+        sourceType = "image";
+      } else {
+        return;
+      }
+
+      if (parsed && typeof parsed.isResumeOrTranscript === "boolean" && !parsed.isResumeOrTranscript) {
+        toast({
+          title: "ไฟล์ไม่ถูกต้อง",
+          description: parsed.suggestionTh || "กรุณาอัปโหลด Resume หรือ Transcript เพื่อให้ AI ช่วยวิเคราะห์ข้อมูลได้อย่างแม่นยำนะครับ",
+          variant: "destructive",
+        });
+        update({ resumeFile: null });
+        return;
+      }
+
+      const merged = mapParsedToOnboarding(parsed, data);
+      
+      // Async secondary request for Bio Generation without blocking UI flow too much
+      generateShortBio(parsed).then(async (newBio) => {
+        if (newBio) {
+           setData((prev) => ({ ...prev, bio: newBio }));
+           if (authUser) {
+             await updateDoc(doc(db, "users", authUser.uid), {
+               "onboardingData.bio": newBio
+             });
+           }
+        }
+      });
+
+      setData((prev) => mapParsedToOnboarding(parsed, prev));
+
+      if (authUser) {
+        await updateDoc(doc(db, "users", authUser.uid), {
+          onboardingData: {
+            firstName: merged.firstName,
+            lastName: merged.lastName,
+            studentId: merged.studentId,
+            faculty: merged.faculty,
+            major: merged.major,
+            year: merged.year,
+            bio: merged.bio,
+            selectedSkills: merged.selectedSkills,
+            interests: merged.interests,
+            experiences: merged.experiences,
+            projects: merged.projects,
+          },
+          resumeExtraction: {
+            fileName: file.name,
+            fileType: file.type,
+            sourceType,
+            parsedJson: parsed,
+            cleanedTextPreview: cleanedText.slice(0, 1000),
+            updatedAt: Date.now(),
+          },
+          updatedAt: Date.now(),
+        });
+      }
+      
+      // Auto-advance after successful parsing
+      setTimeout(() => {
+        saveProgress(1);
+        setAnimKey((k) => k + 1);
+        setStep(1);
+      }, 500);
+
+    } catch (error) {
+      console.error("Resume parsing failed:", error);
+    } finally {
+      setIsParsingResume(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true);
+
+    try {
+      const payload = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        faculty: data.faculty,
+        major: data.major,
+        year: data.year,
+        bio: data.bio,
+        skills: data.selectedSkills,
+        interests: data.interests,
+        experiences: data.experiences,
+        projects: data.projects,
+      };
+      
+      const analysisResult = await generateProfileAnalysis(payload);
+      
+      setRadarData(analysisResult.radarData);
+      setTechRadarData(analysisResult.techRadarData);
+      setGeneratedTags(analysisResult.tags);
+      setAnalysisText(analysisResult.analysis);
+
+      if (authUser) {
+        await updateDoc(doc(db, "users", authUser.uid), {
+          profileAnalysis: analysisResult,
+          updatedAt: Date.now(),
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      // Fallback
+      setRadarData(generateRadarData());
+      setTechRadarData([
+        { skill: "Hard Skill 1", value: 40, fullMark: 100 },
+        { skill: "Hard Skill 2", value: 40, fullMark: 100 },
+      ]);
+      setGeneratedTags(generateTags(data.selectedSkills, data.interests));
+      setAnalysisText("เกิดข้อผิดพลาดในการวิเคราะห์ แต่อย่าหยุดพัฒนานะครับ 🚀");
+    }
+
+    // Save complete onboarding data before showing results
+    await saveProgress(4);
+    
     setTimeout(() => {
-      setRadarData(rd);
-      setGeneratedTags(tags);
+      setStep(4);
       setIsAnalyzing(false);
-    }, 4000);
+    }, 500);
   };
 
   const canProceed = () => {
@@ -545,16 +802,19 @@ const Onboarding = () => {
   const sharedProps = {
     step, data, update, isDragging, setIsDragging, fileInputRef, handleFileChange,
     newSkillInput, setNewSkillInput, newInterestInput, setNewInterestInput,
-    toggleSkill, toggleInterest, addExperience, addProject, radarData, generatedTags, isAnalyzing,
+    toggleSkill, toggleInterest, addExperience, addProject, radarData, techRadarData, generatedTags, isAnalyzing,
+    isParsingResume, analysisText,
   };
 
   const [animKey, setAnimKey] = useState(0);
 
   const goNext = () => {
+    saveProgress(step + 1);
     setAnimKey((k) => k + 1);
     setStep((s) => s + 1);
   };
   const goPrev = () => {
+    saveProgress(step - 1);
     setAnimKey((k) => k + 1);
     setStep((s) => s - 1);
   };
@@ -587,7 +847,7 @@ const Onboarding = () => {
             </div>
           </div>
           <div className="relative z-10 px-8 mb-10">
-            <h1 className="text-2xl font-bold text-white leading-snug">สร้างโปรไฟล์<br />ด้วย AI ✨</h1>
+            <h1 className="text-2xl font-bold text-white leading-snug">สร้างโปรไฟล์<br />ด้วย AI <Sparkles className="h-6 w-6 inline ml-2 text-primary" /></h1>
             <p className="mt-2 text-sm text-white/70 leading-relaxed">
               ใส่ข้อมูลของคุณแล้วให้ AI สร้าง Skill Radar และ Career Tags ให้อัตโนมัติ
             </p>
@@ -626,7 +886,7 @@ const Onboarding = () => {
           </div>
           <div className="relative z-10 px-8 pb-8">
             <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs text-white/70 leading-relaxed">🔒 ข้อมูลของคุณปลอดภัย ใช้เพื่อสร้าง Skill Profile เท่านั้น</p>
+              <p className="text-xs text-white/70 leading-relaxed"><Lock className="h-3 w-3 inline mr-1" /> ข้อมูลของคุณปลอดภัย ใช้เพื่อสร้าง Skill Profile เท่านั้น</p>
             </div>
           </div>
         </div>
@@ -685,9 +945,15 @@ const Onboarding = () => {
                   </Button>
                 ) : step < 4 ? (
                   <Button className="rounded-xl bg-primary text-primary-foreground gap-2 px-8"
-                    onClick={goNext} disabled={!canProceed()}>
-                    {step === 0 && !data.resumeFile ? "ข้าม / กรอกเอง" : "ต่อไป"}
-                    <ChevronRight className="h-4 w-4" />
+                    onClick={goNext} disabled={!canProceed() || isParsingResume}>
+                    {isParsingResume ? (
+                      <>กำลังวิเคราะห์... <Loader2 className="h-4 w-4 animate-spin" /></>
+                    ) : (
+                      <>
+                        {step === 0 && !data.resumeFile ? "ข้าม / กรอกเอง" : "ต่อไป"}
+                        <ChevronRight className="h-4 w-4" />
+                      </>
+                    )}
                   </Button>
                 ) : null}
               </div>
@@ -757,9 +1023,15 @@ const Onboarding = () => {
                   onClick={goPrev}><ChevronLeft className="h-5 w-5" /></Button>
               )}
               <Button className={`h-12 rounded-2xl bg-primary text-primary-foreground font-semibold gap-1.5 ${step === 0 ? "w-full" : "flex-1"}`}
-                onClick={goNext} disabled={!canProceed()}>
-                {step === 0 && !data.resumeFile ? "ข้าม / กรอกเอง" : "ต่อไป"}
-                <ChevronRight className="h-5 w-5" />
+                onClick={goNext} disabled={!canProceed() || isParsingResume}>
+                {isParsingResume ? (
+                  <>กำลังวิเคราะห์... <Loader2 className="h-5 w-5 animate-spin" /></>
+                ) : (
+                  <>
+                    {step === 0 && !data.resumeFile ? "ข้าม / กรอกเอง" : "ต่อไป"}
+                    <ChevronRight className="h-5 w-5" />
+                  </>
+                )}
               </Button>
             </div>
           )}

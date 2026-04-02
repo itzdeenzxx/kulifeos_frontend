@@ -13,7 +13,7 @@ const features = [
 const stats = [
   { value: "500+", label: "นิสิต KU" },
   { value: "120+", label: "โปรเจกต์" },
-  { value: "4.9★", label: "คะแนน" },
+  { value: <span>4.9<Star className="h-4 w-4 ml-1 inline text-yellow-500 fill-current" /></span>, label: "คะแนน" },
   { value: "AI", label: "Powered" },
 ];
 
@@ -191,7 +191,7 @@ const LandingPage = () => {
           <span className="text-sm font-bold text-foreground">LifeOS</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          © 2026 KU LifeOS — Kasetsart University. Built with AI for a smarter campus.
+          &copy; 2026 KU LifeOS — Kasetsart University. Built with AI for a smarter campus.
         </p>
       </footer>
     </div>

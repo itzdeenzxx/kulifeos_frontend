@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bell } from "lucide-react";
-import { userProfile } from "@/lib/mockData";
+import { useCurrentUserProfile } from "@/lib/db";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -15,6 +15,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children, title, hideHeader = false }: AppLayoutProps) {
+  const { profile: userProfile } = useCurrentUserProfile();
   const location = useLocation();
   const navigate = useNavigate();
 

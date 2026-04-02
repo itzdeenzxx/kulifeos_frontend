@@ -9,9 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileText, Sparkles, ArrowRight, Save, Trash2, Plus } from "lucide-react";
 import { extractTextFromPDF, getPdfFirstPageAsImage } from "@/lib/pdfExtractor";
-import { analyzeResumeWithAI } from "@/lib/aiAnalyze";
+import { analyzeResumeWithAI, cleanResumeText } from "@/lib/aiAnalyze";
+import { useAuth } from "@/hooks/useAuth";
+import { db } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 
 const UploadResume = () => {
+  const { authUser } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState("");
@@ -47,25 +51,25 @@ const UploadResume = () => {
       if (isPdf) {
         setProgress(30);
         setStatusText("กำลังแยกเอกสาร (PDF OCR)...");
-        const text = await extractTextFromPDF(file);
+        const text = cleanResumeText(await extractTextFromPDF(file));
         
-        if (text && text.trim().length > 50) {
+        if (text && text.trim().length > 120) {
           setProgress(60);
           setStatusText("กำลังส่งให้ AI (Gemma 3N) จัดรูปแบบข้อมูล...");
-          parsedData = await analyzeResumeWithAI(text, false);
+          parsedData = await analyzeResumeWithAI({ content: text, mode: "pdfText" });
         } else {
           setProgress(40);
           setStatusText("ไม่พบข้อความ กำลังแปลงเป็นรูปภาพ...");
           const imgBase64 = await getPdfFirstPageAsImage(file);
           setProgress(60);
           setStatusText("กำลังส่งให้ AI (Qwen3-VL) อ่านจากรูปภาพ...");
-          parsedData = await analyzeResumeWithAI(imgBase64, true);
+          parsedData = await analyzeResumeWithAI({ content: imgBase64, mode: "image" });
         }
       } else if (isTxt) {
         setProgress(50);
-        const text = await file.text();
-        setStatusText("กำลังส่งให้ AI (Gemma 3N) จัดรูปแบบข้อมูล...");
-        parsedData = await analyzeResumeWithAI(text, false);
+        const text = cleanResumeText(await file.text());
+        setStatusText("กำลังส่งให้ AI (Qwen3-VL) จัดรูปแบบข้อมูล...");
+        parsedData = await analyzeResumeWithAI({ content: text, mode: "plainText" });
       } else if (isImg) {
         setProgress(40);
         const imgBase64 = await new Promise<string>((resolve) => {
@@ -74,7 +78,7 @@ const UploadResume = () => {
           reader.readAsDataURL(file);
         });
         setStatusText("กำลังส่งให้ AI (Qwen3-VL) อ่านจากรูปภาพ...");
-        parsedData = await analyzeResumeWithAI(imgBase64, true);
+        parsedData = await analyzeResumeWithAI({ content: imgBase64, mode: "image" });
       } else {
         alert("รองรับเฉพาะ PDF, TXT หรือ รูปภาพเท่านั้น");
         setLoading(false);
@@ -94,6 +98,19 @@ const UploadResume = () => {
       });
       
       setProgress(100);
+
+      if (authUser) {
+        await updateDoc(doc(db, "users", authUser.uid), {
+          resumeExtraction: {
+            fileName: file.name,
+            fileType: file.type,
+            parsedJson: parsedData,
+            updatedAt: Date.now(),
+          },
+          updatedAt: Date.now(),
+        });
+      }
+
       setTimeout(() => {
         setShowForm(true);
         setLoading(false);
@@ -124,7 +141,7 @@ const UploadResume = () => {
     <AppLayout title="Upload & Analyze">
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="mb-2">
-          <h2 className="text-2xl font-bold text-foreground">อัปโหลด Resume & Profile 📄</h2>
+          <h2 className="text-2xl font-bold text-foreground">อัปโหลด Resume & Profile <FileText className="h-6 w-6 inline ml-2 text-primary" /></h2>
           <p className="text-muted-foreground">ให้ AI ดึงข้อมูลอัตโนมัติจากไฟล์ PDF, TXT หรือรูปภาพ เพื่อลดการกรอกด้วยตนเอง</p>
         </div>
 
@@ -400,7 +417,26 @@ const UploadResume = () => {
             </CardContent>
             <CardFooter className="border-t bg-muted/20 p-6 flex justify-end gap-3">
                <Button variant="ghost">ข้าม / ยกเลิก</Button>
-               <Button className="gap-2">
+               <Button
+                 className="gap-2"
+                 onClick={async () => {
+                   if (!authUser) return;
+                   await updateDoc(doc(db, "users", authUser.uid), {
+                     onboardingData: {
+                       firstName: resumeData.name.split(" ")[0] || "",
+                       lastName: resumeData.name.split(" ").slice(1).join(" ") || "",
+                       selectedSkills: resumeData.skills,
+                       experiences: resumeData.experience.map((exp) => ({
+                         title: exp.title || "",
+                         org: exp.company || "",
+                         year: "",
+                         desc: exp.description || "",
+                       })),
+                     },
+                     updatedAt: Date.now(),
+                   });
+                 }}
+               >
                   <Save className="h-4 w-4" /> บันทึก Profile
                </Button>
             </CardFooter>

@@ -14,7 +14,7 @@ import {
   Sparkles, Plus, Send, Bot, User, GripVertical,
   CheckCircle2, Circle, Clock, Trash2, ChevronRight, MessageCircle, Users, ChevronDown
 } from "lucide-react";
-import { myProjectSpaces, aiChatMessages, aiMockResponses, type TaskItem, type ProjectSpace } from "@/lib/mockData";
+import { useProjectSpaces, aiChatMessagesDefault as aiChatMessages, aiMockResponsesDefault as aiMockResponses, type TaskItem, type ProjectSpace } from "@/lib/db";
 import { motion, AnimatePresence } from "framer-motion";
 
 const statusConfig = {
@@ -118,8 +118,9 @@ const MobileKanbanColumn = ({
 };
 
 const Projects = () => {
-  const [spaces, setSpaces] = useState<ProjectSpace[]>(myProjectSpaces);
-  const [activeSpaceId, setActiveSpaceId] = useState<string>(myProjectSpaces[0].id);
+  const { data: myProjectSpaces = [] } = useProjectSpaces();
+  const [spaces, setSpaces] = useState<ProjectSpace[]>([]);
+  const [activeSpaceId, setActiveSpaceId] = useState<string>("");
   const [showAddTask, setShowAddTask] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
   const [newTask, setNewTask] = useState({ title: "", description: "", assignee: "", tags: "" });
@@ -129,15 +130,22 @@ const Projects = () => {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
 
-  const activeSpace = spaces.find((s) => s.id === activeSpaceId)!;
+  useEffect(() => {
+    if (myProjectSpaces.length > 0 && spaces.length === 0) {
+      setSpaces(myProjectSpaces);
+      setActiveSpaceId(myProjectSpaces[0].id);
+    }
+  }, [myProjectSpaces, spaces.length]);
+
+  const activeSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
 
   const tasksByStatus = {
-    todo: activeSpace.tasks.filter((t) => t.status === "todo"),
-    inProgress: activeSpace.tasks.filter((t) => t.status === "inProgress"),
-    done: activeSpace.tasks.filter((t) => t.status === "done"),
+    todo: activeSpace?.tasks.filter((t) => t.status === "todo") || [],
+    inProgress: activeSpace?.tasks.filter((t) => t.status === "inProgress") || [],
+    done: activeSpace?.tasks.filter((t) => t.status === "done") || [],
   };
 
-  const totalTasks = activeSpace.tasks.length;
+  const totalTasks = activeSpace?.tasks.length || 0;
   const doneTasks = tasksByStatus.done.length;
   const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 

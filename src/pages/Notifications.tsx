@@ -4,9 +4,10 @@ import { PageTransition, StaggerContainer, StaggerItem } from "@/components/Moti
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, Calendar, Users, FolderKanban, TrendingUp, CheckCircle, Circle } from "lucide-react";
-import { notifications } from "@/lib/mockData";
+import { Bell, Calendar, Users, FolderKanban, TrendingUp, CheckCircle, Circle, BellRing } from "lucide-react";
+import { useNotifications } from "@/lib/db";
 import { motion, AnimatePresence } from "framer-motion";
+import { useEffect } from "react";
 
 const typeIcons: Record<string, typeof Bell> = {
   deadline: Calendar, invite: Users, group: Users, task: FolderKanban, career: TrendingUp,
@@ -21,8 +22,16 @@ const typeColors: Record<string, string> = {
 };
 
 const Notifications = () => {
-  const [items, setItems] = useState(notifications);
-  const unreadCount = items.filter((n) => !n.read).length;
+  const { data: notifications = [] } = useNotifications();
+  const [items, setItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (notifications.length > 0 && items.length === 0) {
+      setItems(notifications);
+    }
+  }, [notifications, items.length]);
+
+  const unreadCount = items.filter((n: any) => !n.read).length;
 
   const markAllRead = () => setItems(items.map((n) => ({ ...n, read: true })));
   const toggleRead = (id: number) => setItems(items.map((n) => n.id === id ? { ...n, read: !n.read } : n));
@@ -95,7 +104,7 @@ const Notifications = () => {
           <div className="mx-auto max-w-3xl space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-foreground">การแจ้งเตือน 🔔</h2>
+                <h2 className="text-2xl font-bold text-foreground">การแจ้งเตือน <BellRing className="h-6 w-6 inline ml-2 text-primary" /></h2>
                 <p className="text-muted-foreground">
                   {unreadCount > 0 ? `คุณมี ${unreadCount} การแจ้งเตือนที่ยังไม่ได้อ่าน` : "อ่านครบแล้ว!"}
                 </p>
