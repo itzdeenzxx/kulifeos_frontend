@@ -17,6 +17,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { extractTextFromPDF, getPdfFirstPageAsImage } from "@/lib/pdfExtractor";
 import { analyzeResumeWithAI, cleanResumeText, ParsedResume, generateProfileAnalysis, generateShortBio } from "@/lib/aiAnalyze";
 import { ensureValidRadarData } from "@/lib/utils";
+import { GotjiChat } from "@/components/GotjiChat";
 
 /* ─── Types ─────────────────────────────────────────── */
 interface OnboardingData {
@@ -52,17 +53,17 @@ const FACULTIES = [
 const YEARS = ["ปี 1", "ปี 2", "ปี 3", "ปี 4", "ปี 5+", "บัณฑิตศึกษา"];
 
 const STEPS = [
-  { label: "Resume", sub: "อัพโหลดหรือข้าม", icon: Upload },
-  { label: "ข้อมูลส่วนตัว", sub: "ชื่อ คณะ ชั้นปี", icon: User },
-  { label: "ทักษะ", sub: "Skills & ความสนใจ", icon: Star },
-  { label: "ประสบการณ์", sub: "โปรเจกต์ & งาน", icon: Briefcase },
+  { label: "เรซูเม่", sub: "อัพไฟล์ให้ AI แกะ", icon: Upload },
+  { label: "แนะนำตัว", sub: "ชื่อ คณะ แง้มๆมา", icon: User },
+  { label: "โชว์ของ", sub: "สกิลปังๆ", icon: Star },
+  { label: "สมรภูมิ", sub: "โปรเจกต์ & งาน", icon: Briefcase },
 ];
 
 const AI_STEPS = [
-  { icon: FileText, label: "อ่าน Resume ของคุณ…", sub: "ดึงข้อมูลชื่อ คณะ และรหัสนิสิต", delay: 0 },
-  { icon: Zap, label: "วิเคราะห์ทักษะ…", sub: "ระบุ Hard Skills และ Soft Skills จากข้อมูล", delay: 0.9 },
-  { icon: Brain, label: "สร้าง Skill Radar…", sub: "คำนวณคะแนนทักษะในแต่ละด้าน", delay: 1.8 },
-  { icon: Sparkles, label: "สร้าง Career Tags…", sub: "แนะนำ Tags ที่เหมาะสมกับโปรไฟล์", delay: 2.7 },
+  { icon: FileText, label: "กำลังส่อง Resume…", sub: "แอบดูชื่อ คณะ และรหัสนิสิตแป๊บ", delay: 0 },
+  { icon: Zap, label: "ปั่นรอบสมองหาทักษะ…", sub: "คุ้ยประวัติหา Hard Skills และ Soft Skills แบบตาแตก", delay: 0.9 },
+  { icon: Brain, label: "ตีแผ่ Skill Radar…", sub: "คำนวณคะแนนความเทพออกมาเป็นวงกลม", delay: 1.8 },
+  { icon: Sparkles, label: "ติดป้าย Career Tags…", sub: "หาป้ายที่คู่ควรกับความเจ๋งของคุณ", delay: 2.7 },
 ];
 
 const generateRadarData = () => {
@@ -95,8 +96,8 @@ const AILoadingScreen = () => (
       />
     </div>
     <div className="text-center">
-      <h3 className="text-xl font-bold text-foreground">AI กำลังวิเคราะห์โปรไฟล์…</h3>
-      <p className="mt-1 text-sm text-muted-foreground">ใช้เวลาสักครู่ กรุณารอสักครู่</p>
+      <h3 className="text-xl font-bold text-foreground">AI เรากำลังปั่นสปีดวิเคราะห์คุณอยู่! 🏃💨</h3>
+      <p className="mt-1 text-sm text-muted-foreground">แปะกาวแป๊บนึงน้าาา ไม่เกินอึดใจ!</p>
     </div>
     <div className="w-full max-w-sm space-y-3">
       {AI_STEPS.map(({ icon: Icon, label, sub, delay }) => (
@@ -153,9 +154,9 @@ const StepContent = ({
   if (step === 0) return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">สวัสดี! <Hand className="h-6 w-6 inline ml-2 text-primary" /></h2>
+        <h2 className="text-3xl font-display font-bold text-slate-900 tracking-tight">ว่าไงคนเก่ง! โยนไฟล์มาให้พี่ย่อยได้เลย <Hand className="h-6 w-6 inline ml-2 text-primary" /></h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          อัพโหลด Resume หรือ Transcript ให้ AI ดึงข้อมูลอัตโนมัติ หรือจะข้ามแล้วกรอกเองก็ได้
+          โยนไฟล์ Resume หรือ Transcript มาโลด! เดี๋ยวดึงข้อมูลให้อัตโนมัติเลย (ถ้าไม่มีก็นะ... กดข้ามไปพิมพ์แมนนวลเอาเนอะ หยอกๆ)
         </p>
       </div>
       <div
@@ -224,8 +225,8 @@ const StepContent = ({
   if (step === 1) return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">ข้อมูลส่วนตัว <ClipboardList className="h-6 w-6 inline ml-2 text-primary" /></h2>
-        <p className="mt-1 text-sm text-muted-foreground">ตรวจสอบหรือกรอกข้อมูลของคุณ</p>
+        <h2 className="text-3xl font-display font-bold text-slate-900 tracking-tight">แนะนำตัวหน่อยสิฮะ ใครเอ่ย? <ClipboardList className="h-6 w-6 inline ml-2 text-primary" /></h2>
+        <p className="mt-1 text-sm text-muted-foreground">แก้ข้อมูลได้ตามสบาย แต่ชื่อกับคณะอย่ากรอกผิดก็พอ!</p>
       </div>
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
@@ -233,20 +234,20 @@ const StepContent = ({
             <label className="text-xs font-medium text-muted-foreground mb-1 block">ชื่อ *</label>
             <Input placeholder="ชื่อจริง" value={data.firstName}
               onChange={(e) => update({ firstName: e.target.value })}
-              className="rounded-xl border-border/50 bg-card h-11" />
+              className="rounded-xl border border-slate-200 bg-white h-12 px-4 shadow-sm focus:border-[#009e9a] focus:ring-2 focus:ring-[#009e9a]/20 transition-all font-medium" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">นามสกุล *</label>
             <Input placeholder="นามสกุล" value={data.lastName}
               onChange={(e) => update({ lastName: e.target.value })}
-              className="rounded-xl border-border/50 bg-card h-11" />
+              className="rounded-xl border border-slate-200 bg-white h-12 px-4 shadow-sm focus:border-[#009e9a] focus:ring-2 focus:ring-[#009e9a]/20 transition-all font-medium" />
           </div>
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">รหัสนิสิต</label>
           <Input placeholder="64XXXXXXXX" value={data.studentId}
             onChange={(e) => update({ studentId: e.target.value })}
-            className="rounded-xl border-border/50 bg-card h-11" />
+            className="rounded-xl border border-slate-200 bg-white h-12 px-4 shadow-sm focus:border-[#009e9a] focus:ring-2 focus:ring-[#009e9a]/20 transition-all font-medium" />
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1.5 block">คณะ *</label>
@@ -254,8 +255,8 @@ const StepContent = ({
             {FACULTIES.map((f) => (
               <button key={f} onClick={() => update({ faculty: f })}
                 className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-all ${
-                  data.faculty === f ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-foreground border-border/50 hover:border-primary/40 active:scale-95"
+                  data.faculty === f ? "bg-slate-900 text-white border-0 font-medium shadow-md shadow-slate-900/10"
+                  : "bg-white text-slate-600 border border-slate-200 font-medium hover:border-primary/40 shadow-sm hover:border-primary/40 active:scale-95"
                 }`}>{f}</button>
             ))}
           </div>
@@ -264,7 +265,7 @@ const StepContent = ({
           <label className="text-xs font-medium text-muted-foreground mb-1 block">สาขา</label>
           <Input placeholder="เช่น วิศวกรรมคอมพิวเตอร์" value={data.major}
             onChange={(e) => update({ major: e.target.value })}
-            className="rounded-xl border-border/50 bg-card h-11" />
+            className="rounded-xl border border-slate-200 bg-white h-12 px-4 shadow-sm focus:border-[#009e9a] focus:ring-2 focus:ring-[#009e9a]/20 transition-all font-medium" />
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1.5 block">ชั้นปี *</label>
@@ -272,8 +273,8 @@ const StepContent = ({
             {YEARS.map((y) => (
               <button key={y} onClick={() => update({ year: y })}
                 className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-all ${
-                  data.year === y ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-foreground border-border/50 hover:border-primary/40 active:scale-95"
+                  data.year === y ? "bg-slate-900 text-white border-0 font-medium shadow-md shadow-slate-900/10"
+                  : "bg-white text-slate-600 border border-slate-200 font-medium hover:border-primary/40 shadow-sm hover:border-primary/40 active:scale-95"
                 }`}>{y}</button>
             ))}
           </div>
@@ -292,8 +293,8 @@ const StepContent = ({
   if (step === 2) return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">ทักษะ & ความสนใจ <Target className="h-6 w-6 inline ml-2 text-primary" /></h2>
-        <p className="mt-1 text-sm text-muted-foreground">เลือกอย่างน้อย 1 ทักษะ เพื่อให้ AI วิเคราะห์แม่นยำ</p>
+        <h2 className="text-3xl font-display font-bold text-slate-900 tracking-tight">ทำอะไรเป็นบ้าง โชว์ของให้ดูหน่อย! 🌟 <Target className="h-6 w-6 inline ml-2 text-primary" /></h2>
+        <p className="mt-1 text-sm text-muted-foreground">ขอซัก 1 สกิลเด็ดๆ เป็นอย่างต่ำ จะได้หาทีมถูกใจนะ!</p>
       </div>
       <div>
         <p className="text-sm font-semibold text-foreground mb-2">ทักษะที่มี</p>
@@ -302,8 +303,8 @@ const StepContent = ({
             <button key={label} onClick={() => toggleSkill(label)}
               className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-all active:scale-95 ${
                 data.selectedSkills.includes(label)
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-foreground border-border/50 hover:border-primary/40"
+                  ? "bg-slate-900 text-white border-0 font-medium shadow-md shadow-slate-900/10"
+                  : "bg-white text-slate-600 border border-slate-200 font-medium hover:border-primary/40 shadow-sm hover:border-primary/40"
               }`}>{label}</button>
           ))}
         </div>
@@ -334,8 +335,8 @@ const StepContent = ({
             <button key={i} onClick={() => toggleInterest(i)}
               className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-all active:scale-95 ${
                 data.interests.includes(i)
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-foreground border-border/50 hover:border-primary/40"
+                  ? "bg-slate-900 text-white border-0 font-medium shadow-md shadow-slate-900/10"
+                  : "bg-white text-slate-600 border border-slate-200 font-medium hover:border-primary/40 shadow-sm hover:border-primary/40"
               }`}>{i}</button>
           ))}
         </div>
@@ -357,8 +358,8 @@ const StepContent = ({
   if (step === 3) return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">ประสบการณ์ & โปรเจกต์ <Rocket className="h-6 w-6 inline ml-2 text-primary" /></h2>
-        <p className="mt-1 text-sm text-muted-foreground">กรอกเพิ่มเติมหรือข้ามได้เลย</p>
+        <h2 className="text-3xl font-display font-bold text-slate-900 tracking-tight">ไหนบอกสิ เคยลุยสนามไหนมาบ้าง? 🚀</h2>
+        <p className="mt-1 text-sm text-muted-foreground">ไม่ว่าจะเป็นงานกลุ่ม ยันประกวดระดับชาติ สาดมันเข้ามาฮะ (ข้ามได้ถ้าขี้เกียจพิมพ์ แต่อย่าพิมพ์มั่วนะเดี๋ยวเพื่อนด่า 555)</p>
       </div>
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -439,7 +440,7 @@ const StepContent = ({
         <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
           <Sparkles className="h-8 w-8 text-primary" />
         </div>
-        <h2 className="text-2xl font-bold text-foreground">โปรไฟล์พร้อมแล้ว! <PartyPopper className="h-6 w-6 inline ml-2 text-primary" /></h2>
+        <h2 className="text-3xl font-display font-bold text-slate-900 tracking-tight">โปรไฟล์พร้อมแล้ว! <PartyPopper className="h-6 w-6 inline ml-2 text-primary" /></h2>
         <p className="mt-1 text-sm text-muted-foreground">สวัสดี {data.firstName} {data.lastName}</p>
       </div>
       <div className="rounded-2xl border border-border/50 bg-card p-5">
@@ -849,9 +850,9 @@ const Onboarding = () => {
   return (
     <>
       {/* ════════════════ DESKTOP (md+) ════════════════ */}
-      <div className="hidden md:flex min-h-screen bg-background">
+      <div className="hidden md:flex min-h-screen bg-slate-50 font-sans selection:bg-primary/20">
         {/* Left panel */}
-        <div className="relative w-80 shrink-0 bg-primary flex flex-col overflow-hidden">
+        <div className="relative w-80 shrink-0 bg-gradient-to-b from-[#006664] to-[#023b3a] flex flex-col overflow-hidden z-10">
           <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-white/5" />
           <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-white/5" />
           <div className="relative z-10 flex items-center gap-3 px-8 pt-10 pb-8">
@@ -909,7 +910,7 @@ const Onboarding = () => {
         </div>
 
         {/* Right panel */}
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col bg-slate-50 relative">
           <div className="flex items-center justify-between border-b border-border/40 px-10 py-5">
             {step < 4 ? (
               <div>
@@ -938,7 +939,7 @@ const Onboarding = () => {
             <div className="mx-auto max-w-2xl flex items-center justify-between">
               <div>
                 {step > 0 && step < 4 && (
-                  <Button variant="outline" className="rounded-xl border-border/50 gap-2"
+                  <Button variant="outline" className="rounded-full bg-white text-slate-700 border border-slate-200 font-medium gap-2 px-6 h-12 shadow-sm hover:bg-slate-50 transition-all font-display"
                     onClick={goPrev}>
                     <ChevronLeft className="h-4 w-4" /> ย้อนกลับ
                   </Button>
@@ -951,17 +952,17 @@ const Onboarding = () => {
                   </p>
                 )}
                 {step === 4 && !isAnalyzing ? (
-                  <Button className="rounded-xl bg-primary text-primary-foreground gap-2 px-8"
-                    onClick={() => navigate("/dashboard")}>
+                  <Button className="rounded-full bg-slate-900 text-white font-medium gap-2 px-8 h-12 shadow-xl shadow-slate-900/10 hover:bg-slate-800 hover:-translate-y-0.5 transition-all"
+                    onClick={() => window.location.href = "/dashboard"}>
                     เข้าสู่ Dashboard <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : step === 3 ? (
-                  <Button className="rounded-xl bg-primary text-primary-foreground gap-2 px-8"
+                  <Button className="rounded-full bg-slate-900 text-white font-medium gap-2 px-8 h-12 shadow-xl shadow-slate-900/10 hover:bg-slate-800 hover:-translate-y-0.5 transition-all"
                     onClick={goAnalyze}>
                     <Sparkles className="h-4 w-4" /> วิเคราะห์ด้วย AI
                   </Button>
                 ) : step < 4 ? (
-                  <Button className="rounded-xl bg-primary text-primary-foreground gap-2 px-8"
+                  <Button className="rounded-full bg-slate-900 text-white font-medium gap-2 px-8 h-12 shadow-xl shadow-slate-900/10 hover:bg-slate-800 hover:-translate-y-0.5 transition-all"
                     onClick={goNext} disabled={!canProceed() || isParsingResume}>
                     {isParsingResume ? (
                       <>กำลังวิเคราะห์... <Loader2 className="h-4 w-4 animate-spin" /></>
@@ -1021,7 +1022,7 @@ const Onboarding = () => {
         <div className="fixed bottom-0 inset-x-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border/40 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {step === 4 && !isAnalyzing ? (
             <Button className="w-full h-12 rounded-2xl bg-primary text-primary-foreground font-semibold text-base gap-2"
-              onClick={() => navigate("/dashboard")}>
+              onClick={() => window.location.href = "/dashboard"}>
               เข้าสู่ Dashboard <ChevronRight className="h-5 w-5" />
             </Button>
           ) : step === 3 ? (
@@ -1054,6 +1055,8 @@ const Onboarding = () => {
           )}
         </div>
       </div>
+      
+      <GotjiChat onboardingData={data} currentStep={step} />
     </>
   );
 };

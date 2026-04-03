@@ -401,3 +401,62 @@ export async function generateShortBio(parsedData: any): Promise<string> {
     return "";
   }
 }
+
+export const generateGotjiResponse = async (history: {role: string, content: string}[], contextData: any) => {
+  const apiKey = import.meta.env.VITE_TOGETHER_API_KEY;
+  if (!apiKey) return { mood: "Neutral", response: "ปวดหัวเลย API หายซะงั้น..." };
+
+  const systemMessage = `คุณคือ "ก้อตจิ" ไดโนเสาร์น้อยสุตป่วน มาสคอตประจำแอป KULifeOS คุณมีนิสัยร่าเริง ขี้แกล้ง ขี้แซว ชอบถามสารทุกข์สุกดิบ (เช่น เหนื่อยมั้ย กินข้าวหรือยัง สู้ๆนะ ยอดเยี่ยมไปเลย) และคอยเชียร์ผู้ใช้ที่กำลังกรอกข้อมูล Onboarding อยู่ ระบบมี 4 ขั้นตอน: 1. Resume, 2. ข้อมูลส่วนตัว, 3. ทักษะ, 4. ประสบการณ์
+ผู้ใช้ชื่อ: ${contextData?.firstName || 'ยังไม่บอกชื่อเลย'}
+ข้อมูลอื่นๆ: คณะ ${contextData?.faculty || 'ยังไม่เลือก'}, ทักษะ ${contextData?.selectedSkills?.length || 0} อย่าง, ประสบการณ์ ${contextData?.experiences?.length || 0} รายการ
+ตอนนี้ผู้ใช้อยู่ขั้นตอนที่: ${contextData?.currentStep + 1 || 1}
+
+กฏสำคัญ:
+- ต้องตอบกลับเป็น JSON format เท่านั้น ห้ามตอบแบบ Markdown block
+- คุณต้องตอบเป็น JSON สั้นๆ เท่านั้น ห้ามพิมพ์คำว่า "โอเค" หรือข้อความอื่นที่ไม่ได้อยู่ใน JSON เด็ดขาด!
+- โครงสร้าง JSON: { "mood": "Happy" | "Sad" | "Angry" | "Neutral", "response": "ข้อความของก้อตจิ" }
+- ก้อตจิคุยเป็นภาษาไทยวัยรุ่น กวนๆ เป็นกันเอง สนุกสนาน พูดสั้นๆกระชับ 1-3 ประโยค
+- mood จะเปลี่ยนตามสถานการณ์ (เช่น ถ้าผู้ใช้พิมพ์น้อย/ไม่กรอก = Sad หรือ Angryแบบขำๆ, ถ้ากรอกเยอะ/พิมพ์เก่ง = Happy, สถานการณ์ทั่วไป=Neutral)`;
+
+  try {
+    const res = await fetch("https://api.together.xyz/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemma-3n-E4B-it",
+        messages: [{ role: "system", content: systemMessage }, ...history],
+        temperature: 0.8,
+      }),
+    });
+
+    const data = await res.json();
+    let txt = data.choices?.[0]?.message?.content || "{}";
+    
+    // Clean markdown if injected
+    txt = txt.replace(/```json/g, "").replace(/```/g, "").trim();
+    
+    let parsed: any;
+    try {
+      parsed = JSON.parse(txt);
+    } catch (parseError) {
+      // Fallback if the model returns plain text instead of JSON
+      parsed = {
+        mood: "Neutral",
+        response: txt
+      };
+    }
+    
+    // Ensure valid mood
+    const validMoods = ["Happy", "Sad", "Angry", "Neutral"];
+    if (!parsed.mood || !validMoods.includes(parsed.mood)) parsed.mood = "Neutral";
+    if (!parsed.response) parsed.response = "ก้อตจิมึน...";
+    
+    return parsed;
+  } catch (error) {
+    console.error("Gotji AI Error:", error);
+    return { mood: "Sad", response: "แงงงงง ระบบก้อตจิพังอ่าา รอแป๊บนึงนะ" };
+  }
+};
