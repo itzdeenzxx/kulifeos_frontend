@@ -14,7 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["Prompt", "sans-serif"],
+        display: ["Kanit", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
