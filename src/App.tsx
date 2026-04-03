@@ -17,9 +17,6 @@ import CareerInsights from "./pages/CareerInsights";
 import Community from "./pages/Community";
 import Settings from "./pages/Settings";
 import UploadResume from "./pages/UploadResume";
-import TeacherDashboard from "./pages/TeacherDashboard";
-import ClassroomDetail from "./pages/teacher/ClassroomDetail";
-import TeacherSettings from "./pages/teacher/TeacherSettings";
 import Notifications from "./pages/Notifications";
 import JoinClassroom from "./pages/JoinClassroom";
 import NotFound from "./pages/NotFound";
@@ -47,9 +44,6 @@ const App = () => (
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/upload" element={<ProtectedRoute><UploadResume /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-            <Route path="/teacher" element={<ProtectedRoute><TeacherDashboard /></ProtectedRoute>} />
-            <Route path="/teacher/classroom/:classroomId" element={<ProtectedRoute><ClassroomDetail /></ProtectedRoute>} />
-            <Route path="/teacher/settings" element={<ProtectedRoute><TeacherSettings /></ProtectedRoute>} />
             <Route path="/join" element={<JoinClassroom />} />
             <Route path="/join/:classroomId" element={<JoinClassroom />} />
             <Route path="*" element={<NotFound />} />

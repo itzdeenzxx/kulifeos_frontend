@@ -24,6 +24,11 @@ export function ProtectedRoute({ children, requireOnboarded = true }: ProtectedR
     return <Navigate to="/auth" replace />;
   }
 
+  // Prevent teachers from accessing student app
+  if (userProfile.role === "teacher") {
+    return <Navigate to="/auth" replace />;
+  }
+
   // If onboarding is required and user hasn't completed it
   if (requireOnboarded && userProfile.onboardingStep < 4) {
     return <Navigate to="/onboarding" replace />;
