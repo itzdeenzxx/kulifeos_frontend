@@ -1,4 +1,4 @@
-import { LayoutDashboard, User, Users, FolderKanban, TrendingUp, Settings, Upload, Bell, LogOut } from "lucide-react";
+import { LayoutDashboard, User, Users, FolderKanban, TrendingUp, Settings, Upload, Bell, LogOut, MessageSquare } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Separator } from "@/components/ui/separator";
 import { useLogout } from "@/hooks/use-logout";
@@ -16,8 +16,8 @@ import {
 
 const mainNav = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Community", url: "/community", icon: MessageSquare },
   { title: "My Profile", url: "/profile", icon: User },
-  { title: "Upload & Analyze", url: "/upload", icon: Upload },
   { title: "Team Matching", url: "/team", icon: Users },
   { title: "Projects", url: "/projects", icon: FolderKanban },
   { title: "Career Insights", url: "/career", icon: TrendingUp },

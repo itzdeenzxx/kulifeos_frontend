@@ -1748,4 +1748,292 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 [1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[J(base) addeen@Addeens-MacBook-Air-2 kulifeos % [K[?2004h  sed -i '' 's/AvatarFallback }/Av [KaatarFallback, AvatarImage }/g' src/components/TopBar.tsx && sed -i '' 's/<Avatar [KFFallback/<AvatarImage src={userProfile?.photoURL || userProfile?.avatar} \/>\n   [K         <AvatarFallback/g' src/components/TopBar.tsx[?2004l
 [1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[J(base) addeen@Addeens-MacBook-Air-2 kulifeos % [K[?2004h[?2004l
 [1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[J(base) addeen@Addeens-MacBook-Air-2 kulifeos % [K[?2004h  npx tsc --noEmit[?2004l
-[1G[0K⠙[1G[0K[1G[0K⠙[1G[0K[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[J(base) addeen@Addeens-MacBook-Air-2 kulifeos % [K[?2004h
+[1G[0K⠙[1G[0K[1G[0K⠙[1G[0K[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[J(base) addeen@Addeens-MacBook-Air-2 kulifeos % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[J(base) addeen@Addeens-MacBook-Air-2 kulifeos % [K[?2004h  npx tsc --noEmit[?2004l
+[1G[0K⠙[1G[0K[1G[0K⠙[1G[0K[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[J(base) addeen@Addeens-MacBook-Air-2 kulifeos % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[J(base) addeen@Addeens-MacBook-Air-2 kulifeos % [K[?2004h  nl -ba src/pages/Dashboard.tsx | [K  sed -n '1,340p'[?2004l
+     1	import { AppLayout } from "@/components/AppLayout";
+     2	import { PageTransition, StaggerContainer, StaggerItem } from "@/components/MotionWrappers";
+     3	import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+     4	import { Badge } from "@/components/ui/badge";
+     5	import { Button } from "@/components/ui/button";
+     6	import { Progress } from "@/components/ui/progress";
+     7	import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
+     8	import { ArrowRight, Calendar, FolderKanban, Flame, Trophy, Sparkles, TrendingUp, Hand } from "lucide-react";
+     9	import { useSkillData, skillTagsDefault as skillTags, useCareerRecommendation, useDeadlines, useActiveProjects, useCurrentUserProfile } from "@/lib/db";
+    10	import { motion } from "framer-motion";
+    11	import { useNavigate } from "react-router-dom";
+    12	
+    13	const FALLBACK_SKILL_DATA = [
+    14	  { skill: "Communication", value: 0, fullMark: 100 },
+    15	  { skill: "Teamwork", value: 0, fullMark: 100 },
+    16	  { skill: "Problem Solving", value: 0, fullMark: 100 },
+    17	  { skill: "Adaptability", value: 0, fullMark: 100 },
+    18	  { skill: "Time Management", value: 0, fullMark: 100 },
+    19	];
+    20	
+    21	const Dashboard = () => {
+    22	  const { data: skillData = [] } = useSkillData();
+    23	  const { data: careerRecommendation } = useCareerRecommendation();
+    24	  const { data: deadlines = [] } = useDeadlines();
+    25	  const { data: activeProjects = [] } = useActiveProjects();
+    26	  const { profile: userProfile } = useCurrentUserProfile();
+    27	
+    28	  const navigate = useNavigate();
+    29	  const validProjects = activeProjects && activeProjects.length > 0 ? activeProjects : [];
+    30	  const totalProgress = validProjects.length > 0 ? Math.round(validProjects.reduce((a, p) => a + (p.progress || 0), 0) / validProjects.length) : 0;
+    31	  const safeSkillData = skillData.length > 0 ? skillData : FALLBACK_SKILL_DATA;
+    32	  const hasSkillData = skillData.length > 0;
+    33	  const hasDeadlines = deadlines.length > 0;
+    34	  const hasProjects = activeProjects.length > 0;
+    35	  const displayName = userProfile?.name?.trim() ? userProfile.name.split(/\s+/)[0] : "คุณ";
+    36	  const careerTitle = careerRecommendation?.title || "ยังไม่มีคำแนะนำ";
+    37	  const careerScore = typeof careerRecommendation?.matchScore === "number" ? careerRecommendation.matchScore : 0;
+    38	
+    39	  return (
+    40	    <AppLayout title="Dashboard" hideHeader>
+    41	      <PageTransition>
+    42	        {/* ========== MOBILE LAYOUT ========== */}
+    43	        <div className="md:hidden space-y-5 overflow-x-hidden">
+    44	          {/* Hero Greeting */}
+    45	          <motion.div
+    46	            initial={{ opacity: 0, scale: 0.96 }}
+    47	            animate={{ opacity: 1, scale: 1 }}
+    48	            transition={{ duration: 0.35, ease: "easeOut" }}
+    49	            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary to-secondary px-5 py-5 text-primary-foreground"
+    50	          >
+    51	            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/8" />
+    52	            <div className="absolute -bottom-4 -left-4 h-24 w-24 rounded-full bg-white/5" />
+    53	            <div className="relative z-10">
+    54	              <p className="text-sm font-medium opacity-80">สวัสดี <Hand className="h-4 w-4 inline" /></p>
+    55	              <h2 className="mt-0.5 text-[26px] font-extrabold leading-tight">{displayName}</h2>
+    56	              <p className="mt-1.5 text-sm opacity-70">ทักษะของคุณกำลังเติบโต <Sparkles className="h-4 w-4 inline ml-1 text-yellow-500" /></p>
+    57	
+    58	              <div className="mt-5 grid grid-cols-3 gap-2">
+    59	                {[
+    60	                  { icon: Flame, value: "7", label: "Streak" },
+    61	                  { icon: Trophy, value: `${careerScore}%`, label: "Match" },
+    62	                  { icon: TrendingUp, value: `${totalProgress}%`, label: "Progress" },
+    63	                ].map((stat) => (
+    64	                  <div key={stat.label} className="rounded-2xl bg-white/12 px-2 py-2.5 text-center backdrop-blur-sm">
+    65	                    <stat.icon className="mx-auto h-4.5 w-4.5 opacity-90" />
+    66	                    <p className="mt-1 text-[17px] font-extrabold leading-tight">{stat.value}</p>
+    67	                    <p className="text-[10px] font-medium opacity-70">{stat.label}</p>
+    68	                  </div>
+    69	                ))}
+    70	              </div>
+    71	            </div>
+    72	          </motion.div>
+    73	
+    74	          {/* Career Recommendation */}
+    75	          <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.12 }}>
+    76	            <button onClick={() => navigate("/career")} className="flex w-full items-center gap-3.5 rounded-2xl border border-border/50 bg-card p-4 text-left active:scale-[0.98] transition-transform">
+    77	              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/8">
+    78	                <Sparkles className="h-6 w-6 text-primary" />
+    79	              </div>
+    80	              <div className="min-w-0 flex-1">
+    81	                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">AI แนะนำ</p>
+    82	                <p className="truncate text-[15px] font-bold text-foreground">{careerTitle}</p>
+    83	                <div className="mt-0.5 flex items-center gap-1.5">
+    84	                  <span className="text-base font-extrabold text-primary">{careerScore}%</span>
+    85	                  <span className="text-[11px] text-muted-foreground">match</span>
+    86	                </div>
+    87	              </div>
+    88	              <ArrowRight className="h-5 w-5 shrink-0 text-muted-foreground/50" />
+    89	            </button>
+    90	          </motion.div>
+    91	
+    92	          {/* Deadlines - Horizontal scroll */}
+    93	          <div>
+    94	            <h3 className="mb-2.5 flex items-center gap-2 text-[15px] font-bold text-foreground">
+    95	              <Calendar className="h-4 w-4 text-primary" /> เดดไลน์
+    96	            </h3>
+    97	            <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
+    98	              {hasDeadlines ? deadlines.map((d, i) => (
+    99	                <motion.div
+   100	                  key={d.title}
+   101	                  initial={{ opacity: 0, y: 8 }}
+   102	                  animate={{ opacity: 1, y: 0 }}
+   103	                  transition={{ delay: 0.15 + i * 0.06 }}
+   104	                >
+   105	                  <div className="min-w-[150px] shrink-0 rounded-2xl border border-border/50 bg-card p-3.5">
+   106	                    <p className="text-[11px] font-bold text-primary">{d.date}</p>
+   107	                    <p className="mt-1 text-[13px] font-semibold leading-tight text-foreground">{d.title}</p>
+   108	                    <p className="mt-0.5 text-[11px] text-muted-foreground">{d.course}</p>
+   109	                  </div>
+   110	                </motion.div>
+   111	              )) : (
+   112	                <div className="min-w-[220px] rounded-2xl border border-dashed border-border/60 bg-card p-4 text-sm text-muted-foreground">
+   113	                  ยังไม่มีเดดไลน์ใน Firestore
+   114	                </div>
+   115	              )}
+   116	            </div>
+   117	          </div>
+   118	
+   119	          {/* Active Projects */}
+   120	          <div>
+   121	            <h3 className="mb-2.5 flex items-center gap-2 text-[15px] font-bold text-foreground">
+   122	              <FolderKanban className="h-4 w-4 text-primary" /> โปรเจกต์
+   123	            </h3>
+   124	            <div className="space-y-2.5">
+   125	              {hasProjects ? activeProjects.map((p, i) => (
+   126	                <motion.div
+   127	                  key={p.name}
+   128	                  initial={{ opacity: 0, x: -8 }}
+   129	                  animate={{ opacity: 1, x: 0 }}
+   130	                  transition={{ delay: 0.2 + i * 0.06 }}
+   131	                >
+   132	                  <button onClick={() => navigate("/projects")} className="flex w-full items-center gap-3.5 rounded-2xl border border-border/50 bg-card p-3.5 active:scale-[0.98] transition-transform">
+   133	                    <div className="relative h-12 w-12 shrink-0">
+   134	                      <svg className="h-12 w-12 -rotate-90" viewBox="0 0 48 48">
+   135	                        <circle cx="24" cy="24" r="20" fill="none" stroke="hsl(var(--accent))" strokeWidth="4" />
+   136	                        <circle cx="24" cy="24" r="20" fill="none" stroke="hsl(var(--primary))" strokeWidth="4"
+   137	                          strokeDasharray={`${((p.progress || 0) / 100) * 125.6} 125.6`} strokeLinecap="round" />
+   138	                      </svg>
+   139	                      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-foreground">{p.progress || 0}%</span>
+   140	                    </div>
+   141	                    <div className="min-w-0 flex-1">
+   142	                      <p className="truncate text-[14px] font-semibold text-foreground">{p.name}</p>
+   143	                      <p className="text-[11px] text-muted-foreground">{p.members} สมาชิก</p>
+   144	                    </div>
+   145	                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+   146	                  </button>
+   147	                </motion.div>
+   148	              )) : (
+   149	                <div className="rounded-2xl border border-dashed border-border/60 bg-card p-4 text-sm text-muted-foreground">
+   150	                  ยังไม่มีโปรเจกต์ใน Firestore
+   151	                </div>
+   152	              )}
+   153	            </div>
+   154	          </div>
+   155	
+   156	          {/* Skill Radar */}
+   157	          <div className="rounded-2xl border border-border/50 bg-card p-4">
+   158	            <h3 className="mb-1 text-[15px] font-bold text-foreground">Skill Identity</h3>
+   159	            <div className="mx-auto h-48 w-full min-h-[192px]">
+   160	              <ResponsiveContainer width="100%" height="100%">
+   161	                <RadarChart data={safeSkillData}>
+   162	                  <PolarGrid stroke="hsl(140 10% 90%)" />
+   163	                  <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(150 5% 45%)", fontSize: 10 }} />
+   164	                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+   165	                  <Radar dataKey="value" stroke="hsl(153 100% 20%)" fill="hsl(153 100% 20%)" fillOpacity={0.15} strokeWidth={2} />
+   166	                </RadarChart>
+   167	              </ResponsiveContainer>
+   168	            </div>
+   169	            {!hasSkillData && (
+   170	              <p className="mt-2 text-xs text-muted-foreground">ยังไม่มีข้อมูล Skill Data ใน Firestore</p>
+   171	            )}
+   172	            <div className="mt-1 flex flex-wrap gap-1.5">
+   173	              {skillTags.map((tag) => (
+   174	                <Badge key={tag} variant="secondary" className="rounded-full bg-accent text-accent-foreground border-0 px-2.5 py-0.5 text-[10px] font-medium">
+   175	                  {tag}
+   176	                </Badge>
+   177	              ))}
+   178	            </div>
+   179	          </div>
+   180	        </div>
+   181	
+   182	        {/* ========== DESKTOP LAYOUT ========== */}
+   183	        <div className="hidden md:block">
+   184	          <div className="mb-8">
+   185	            <h2 className="text-2xl font-bold text-foreground">Welcome back, {displayName} <Hand className="h-5 w-5 inline ml-1" /></h2>
+   186	            <p className="text-muted-foreground">Your skills are growing. Keep building your future.</p>
+   187	          </div>
+   188	
+   189	          <div className="grid gap-6 lg:grid-cols-3">
+   190	            <div className="space-y-6 lg:col-span-2">
+   191	              <StaggerItem>
+   192	                <Card className="rounded-2xl border-border/50">
+   193	                  <CardHeader><CardTitle className="text-lg">Your Skill Identity</CardTitle></CardHeader>
+   194	                  <CardContent>
+   195	                    <div className="mx-auto h-72 w-full max-w-md">
+   196	                      <ResponsiveContainer width="100%" height="100%">
+   197	                        <RadarChart data={safeSkillData}>
+   198	                          <PolarGrid stroke="hsl(140 10% 90%)" />
+   199	                          <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(150 5% 45%)", fontSize: 12 }} />
+   200	                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+   201	                          <Radar dataKey="value" stroke="hsl(153 100% 20%)" fill="hsl(153 100% 20%)" fillOpacity={0.15} strokeWidth={2} />
+   202	                        </RadarChart>
+   203	                      </ResponsiveContainer>
+   204	                    </div>
+   205	                    {!hasSkillData && (
+   206	                      <p className="mt-3 text-sm text-muted-foreground">ยังไม่มีข้อมูล Skill Data ใน Firestore</p>
+   207	                    )}
+   208	                    <div className="mt-4 flex flex-wrap gap-2">
+   209	                      {skillTags.map((tag) => (
+   210	                        <Badge key={tag} variant="secondary" className="rounded-full bg-accent text-accent-foreground border-0 px-3 py-1 text-xs font-medium transition-colors duration-200 hover:bg-primary hover:text-primary-foreground">
+   211	                          {tag}
+   212	                        </Badge>
+   213	                      ))}
+   214	                    </div>
+   215	                  </CardContent>
+   216	                </Card>
+   217	              </StaggerItem>
+   218	            </div>
+   219	
+   220	            <StaggerContainer className="space-y-6">
+   221	              <StaggerItem>
+   222	                <Card className="card-hover rounded-2xl border-border/50">
+   223	                  <CardHeader className="pb-3"><CardTitle className="text-base">Career Recommendation</CardTitle></CardHeader>
+   224	                  <CardContent>
+   225	                    <p className="text-lg font-semibold text-foreground">{careerTitle}</p>
+   226	                    <div className="mt-2 flex items-center gap-2">
+   227	                      <span className="text-2xl font-bold text-primary">{careerScore}%</span>
+   228	                      <span className="text-sm text-muted-foreground">match</span>
+   229	                    </div>
+   230	                    <Button variant="ghost" onClick={() => navigate("/career")} className="mt-3 gap-1 px-0 text-primary hover:bg-transparent hover:text-primary/80">
+   231	                      View Insight <ArrowRight className="h-4 w-4" />
+   232	                    </Button>
+   233	                  </CardContent>
+   234	                </Card>
+   235	              </StaggerItem>
+   236	              <StaggerItem>
+   237	                <Card className="rounded-2xl border-border/50">
+   238	                  <CardHeader className="pb-3">
+   239	                    <CardTitle className="flex items-center gap-2 text-base"><Calendar className="h-4 w-4 text-primary" /> Upcoming Deadlines</CardTitle>
+   240	                  </CardHeader>
+   241	                  <CardContent className="space-y-3">
+   242	                    {hasDeadlines ? deadlines.map((d) => (
+   243	                      <div key={d.title} className="flex items-center justify-between">
+   244	                        <div>
+   245	                          <p className="text-sm font-medium text-foreground">{d.title}</p>
+   246	                          <p className="text-xs text-muted-foreground">{d.course}</p>
+   247	                        </div>
+   248	                        <span className="text-xs text-muted-foreground">{d.date}</span>
+   249	                      </div>
+   250	                    )) : (
+   251	                      <p className="text-sm text-muted-foreground">ยังไม่มีเดดไลน์ใน Firestore</p>
+   252	                    )}
+   253	                  </CardContent>
+   254	                </Card>
+   255	              </StaggerItem>
+   256	              <StaggerItem>
+   257	                <Card className="rounded-2xl border-border/50">
+   258	                  <CardHeader className="pb-3">
+   259	                    <CardTitle className="flex items-center gap-2 text-base"><FolderKanban className="h-4 w-4 text-primary" /> Active Projects</CardTitle>
+   260	                  </CardHeader>
+   261	                  <CardContent className="space-y-4">
+   262	                    {hasProjects ? activeProjects.map((p) => (
+   263	                      <div key={p.name}>
+   264	                        <div className="mb-1 flex items-center justify-between">
+   265	                          <p className="text-sm font-medium text-foreground">{p.name}</p>
+   266	                          <span className="text-xs text-muted-foreground">{p.progress || 0}%</span>
+   267	                        </div>
+   268	                        <Progress value={p.progress || 0} className="h-2 bg-accent [&>div]:bg-primary" />
+   269	                      </div>
+   270	                    )) : (
+   271	                      <p className="text-sm text-muted-foreground">ยังไม่มีโปรเจกต์ใน Firestore</p>
+   272	                    )}
+   273	                  </CardContent>
+   274	                </Card>
+   275	              </StaggerItem>
+   276	            </StaggerContainer>
+   277	          </div>
+   278	        </div>
+   279	      </PageTransition>
+   280	    </AppLayout>
+   281	  );
+   282	};
+   283	
+   284	export default Dashboard;
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[J(base) addeen@Addeens-MacBook-Air-2 kulifeos % [K[?2004h

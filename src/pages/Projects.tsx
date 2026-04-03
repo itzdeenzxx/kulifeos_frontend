@@ -12,9 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import {
   Sparkles, Plus, Send, Bot, User, GripVertical,
-  CheckCircle2, Circle, Clock, Trash2, ChevronRight, MessageCircle, Users, ChevronDown
+  CheckCircle2, Circle, Clock, Trash2, ChevronRight, MessageCircle, Users, ChevronDown, Check
 } from "lucide-react";
-import { useProjectSpaces, aiChatMessagesDefault as aiChatMessages, aiMockResponsesDefault as aiMockResponses, type TaskItem, type ProjectSpace } from "@/lib/db";
+import { useProjectSpaces, createProjectSpace, addTasksToProjectSpace, aiChatMessagesDefault as aiChatMessages, aiMockResponsesDefault as aiMockResponses, type TaskItem, type ProjectSpace } from "@/lib/db";
+import { generateProjectTasks } from "@/lib/aiAnalyze";
+import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 
 const statusConfig = {
@@ -118,17 +120,27 @@ const MobileKanbanColumn = ({
 };
 
 const Projects = () => {
-  const { data: myProjectSpaces = [] } = useProjectSpaces();
+  const { authUser, userProfile } = useAuth();
+  const { data: myProjectSpaces = [] } = useProjectSpaces(authUser?.uid);
   const [spaces, setSpaces] = useState<ProjectSpace[]>([]);
   const [activeSpaceId, setActiveSpaceId] = useState<string>("");
   const [showAddTask, setShowAddTask] = useState(false);
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [newProject, setNewProject] = useState({ name: "", description: "" });
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
   const [newTask, setNewTask] = useState({ title: "", description: "", assignee: "", tags: "" });
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>(aiChatMessages);
   const [chatInput, setChatInput] = useState("");
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [chatEndRef, setChatEndRef] = useState<HTMLDivElement | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
+  
+  // AI Task Recommendation states
+  const [isGeneratingTasks, setIsGeneratingTasks] = useState(false);
+  const [showAITaskReview, setShowAITaskReview] = useState(false);
+  const [aiSuggestedTasks, setAiSuggestedTasks] = useState<TaskItem[]>([]);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (myProjectSpaces.length > 0 && spaces.length === 0) {
@@ -139,6 +151,21 @@ const Projects = () => {
 
   const activeSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
 
+  useEffect(() => {
+    chatEndRef?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, chatEndRef]);
+
+  if (!activeSpace) {
+    return (
+      <AppLayout title="Projects">
+        <div className="flex h-[50vh] flex-col items-center justify-center text-center p-8">
+          <p className="text-xl font-bold text-foreground">ไม่พบโปรเจกต์</p>
+          <p className="text-muted-foreground mt-2">คุณยังไม่มี Project Space ใด ๆ</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
   const tasksByStatus = {
     todo: activeSpace?.tasks.filter((t) => t.status === "todo") || [],
     inProgress: activeSpace?.tasks.filter((t) => t.status === "inProgress") || [],
@@ -148,10 +175,6 @@ const Projects = () => {
   const totalTasks = activeSpace?.tasks.length || 0;
   const doneTasks = tasksByStatus.done.length;
   const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
 
   const handleAddTask = () => {
     if (!newTask.title.trim()) return;
@@ -169,6 +192,48 @@ const Projects = () => {
     );
     setNewTask({ title: "", description: "", assignee: "", tags: "" });
     setShowAddTask(false);
+  };
+
+  const handleCreateProject = async () => {
+    if (!newProject.name.trim() || !authUser) return;
+    setIsCreatingProject(true);
+    try {
+      const memberInfo = { 
+        id: authUser.uid, 
+        name: userProfile?.email?.split('@')[0] || "You", 
+        avatar: userProfile?.email?.substring(0, 2).toUpperCase() || "ME", 
+        role: "admin" 
+      };
+
+      const data = {
+        name: newProject.name,
+        description: newProject.description,
+        ownerId: authUser.uid,
+        groupId: "g-dynamic",
+        members: [memberInfo],
+        tasks: [],
+      };
+      const newProjectId = await createProjectSpace(data as any);
+      
+      const newSpace: ProjectSpace = {
+        id: newProjectId,
+        name: newProject.name,
+        description: newProject.description,
+        ownerId: authUser.uid,
+        groupId: "g-dynamic",
+        members: [memberInfo],
+        tasks: [],
+      };
+
+      setSpaces((prev) => [...prev, newSpace]);
+      setActiveSpaceId(newProjectId);
+      setNewProject({ name: "", description: "" });
+      setShowAddProject(false);
+    } catch (error) {
+      console.error("Failed to create project", error);
+    } finally {
+      setIsCreatingProject(false);
+    }
   };
 
   const moveTask = (taskId: string, newStatus: TaskItem["status"]) => {
@@ -207,15 +272,48 @@ const Projects = () => {
     }, 800);
   };
 
-  const handleAISuggestTasks = () => {
-    const suggestedTasks: TaskItem[] = [
-      { id: `ai-${Date.now()}-1`, title: "วิจัย User Pain Points", description: "สัมภาษณ์นิสิต 10 คนเพื่อหา pain points", status: "todo", assignee: "NW", tags: ["Research", "AI"], createdAt: new Date().toISOString().split("T")[0] },
-      { id: `ai-${Date.now()}-2`, title: "สร้าง Prototype v1", description: "สร้าง clickable prototype ใน Figma", status: "todo", assignee: "AC", tags: ["Design"], createdAt: new Date().toISOString().split("T")[0] },
-      { id: `ai-${Date.now()}-3`, title: "เทรน ML Model", description: "เทรน model ด้วย dataset ที่เก็บมา", status: "todo", assignee: "SK", tags: ["AI", "Backend"], createdAt: new Date().toISOString().split("T")[0] },
-    ];
-    setSpaces((prev) =>
-      prev.map((s) => (s.id === activeSpaceId ? { ...s, tasks: [...s.tasks, ...suggestedTasks] } : s))
-    );
+  const handleAISuggestTasks = async () => {
+    setIsGeneratingTasks(true);
+    try {
+      const existingTasksList = activeSpace.tasks.map(t => `${t.title}: ${t.description || ""}`);
+      const generatedTasksData = await generateProjectTasks(activeSpace.name, activeSpace.description, existingTasksList);
+      const formattedTasks: TaskItem[] = generatedTasksData.map((t, idx) => ({
+        id: `ai-${Date.now()}-${idx}`,
+        title: t.title,
+        description: t.description,
+        status: "todo",
+        assignee: activeSpace.members[0].avatar, // Default to first member
+        tags: t.tags || [],
+        createdAt: new Date().toISOString().split("T")[0],
+      }));
+      setAiSuggestedTasks(formattedTasks);
+      setSelectedTaskIds(new Set(formattedTasks.map(t => t.id))); // select all by default
+      setShowAITaskReview(true);
+    } catch (error) {
+      console.error("Error generating tasks:", error);
+    } finally {
+      setIsGeneratingTasks(false);
+    }
+  };
+
+  const confirmAiTasks = async () => {
+    const tasksToAdd = aiSuggestedTasks.filter(t => selectedTaskIds.has(t.id));
+    if (tasksToAdd.length === 0) {
+      setShowAITaskReview(false);
+      return;
+    }
+    
+    try {
+      await addTasksToProjectSpace(activeSpaceId, tasksToAdd);
+      setSpaces((prev) =>
+        prev.map((s) => (s.id === activeSpaceId ? { ...s, tasks: [...s.tasks, ...tasksToAdd] } : s))
+      );
+      setShowAITaskReview(false);
+      setAiSuggestedTasks([]);
+      setSelectedTaskIds(new Set());
+    } catch (error) {
+      console.error("Error saving AI suggested tasks:", error);
+    }
   };
 
   return (
@@ -240,6 +338,13 @@ const Projects = () => {
               </p>
             </button>
           ))}
+          <button
+              onClick={() => setShowAddProject(true)}
+              className="flex-shrink-0 rounded-2xl px-4 py-2.5 flex items-center justify-center gap-1 border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-all"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="text-[13px] font-semibold">สร้างโปรเจกต์</span>
+          </button>
         </div>
 
         {/* Project Info Card */}
@@ -277,8 +382,8 @@ const Projects = () => {
           <Button variant="outline" size="sm" onClick={() => setShowAIChat(true)} className="gap-1.5 rounded-xl text-[12px] h-9">
             <MessageCircle className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="outline" size="sm" onClick={handleAISuggestTasks} className="gap-1.5 rounded-xl text-[12px] h-9">
-            <Sparkles className="h-3.5 w-3.5" />
+          <Button variant="outline" size="sm" onClick={handleAISuggestTasks} disabled={isGeneratingTasks} className="gap-1.5 rounded-xl text-[12px] h-9">
+            <Sparkles className="h-3.5 w-3.5" /> {isGeneratingTasks ? "กำลังคิด..." : ""}
           </Button>
         </div>
 
@@ -316,6 +421,13 @@ const Projects = () => {
               <p className="text-[11px] text-muted-foreground">{space.members.length} สมาชิก</p>
             </button>
           ))}
+          <button
+              onClick={() => setShowAddProject(true)}
+              className="flex-shrink-0 rounded-xl border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-all flex flex-col justify-center items-center px-6"
+            >
+              <Plus className="h-5 w-5 mb-1" />
+              <span className="text-xs font-semibold">สร้างโปรเจกต์</span>
+          </button>
         </div>
 
         {/* Header */}
@@ -328,8 +440,8 @@ const Projects = () => {
             <Button variant="outline" size="sm" onClick={() => setShowAIChat(true)} className="gap-2 rounded-xl">
               <MessageCircle className="h-4 w-4" /> AI คู่คิด
             </Button>
-            <Button variant="outline" size="sm" onClick={handleAISuggestTasks} className="gap-2 rounded-xl">
-              <Sparkles className="h-4 w-4" /> AI แนะนำ Task
+            <Button variant="outline" size="sm" onClick={handleAISuggestTasks} disabled={isGeneratingTasks} className="gap-2 rounded-xl">
+              <Sparkles className="h-4 w-4" /> {isGeneratingTasks ? "กำลังวิเคราะห์..." : "AI แนะนำ Task"}
             </Button>
             <Button size="sm" onClick={() => setShowAddTask(true)} className="gap-2 rounded-xl bg-primary text-primary-foreground">
               <Plus className="h-4 w-4" /> เพิ่ม Task
@@ -480,6 +592,46 @@ const Projects = () => {
         </div>
       </div>
 
+      {/* Add Project Dialog */}
+      <Dialog open={showAddProject} onOpenChange={setShowAddProject}>
+        <DialogContent className="rounded-2xl sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-primary" /> สร้าง Project Space ใหม่
+            </DialogTitle>
+            <DialogDescription>ตั้งชื่อและรายละเอียดสำหรับโปรเจกต์ใหม่</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>ชื่อ Project</Label>
+              <Input
+                placeholder="เช่น ระบบจองห้องสมุด"
+                className="rounded-xl"
+                value={newProject.name}
+                onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>รายละเอียด</Label>
+              <Textarea
+                placeholder="อธิบายสั้นๆ เกี่ยวกับโปรเจกต์..."
+                className="rounded-xl resize-none"
+                rows={3}
+                value={newProject.description}
+                onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+              />
+            </div>
+            <Button
+              className="w-full rounded-xl bg-primary text-primary-foreground"
+              onClick={handleCreateProject}
+              disabled={isCreatingProject || !newProject.name.trim()}
+            >
+              {isCreatingProject ? "กำลังสร้าง..." : "สร้าง Project Space"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Add Task Dialog */}
       <Dialog open={showAddTask} onOpenChange={setShowAddTask}>
         <DialogContent className="rounded-2xl sm:max-w-lg">
@@ -514,6 +666,57 @@ const Projects = () => {
               <Input placeholder="เช่น Design, Frontend" className="rounded-xl" value={newTask.tags} onChange={(e) => setNewTask({ ...newTask, tags: e.target.value })} />
             </div>
             <Button className="w-full rounded-xl bg-primary text-primary-foreground" onClick={handleAddTask}>สร้าง Task</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Task Review Dialog */}
+      <Dialog open={showAITaskReview} onOpenChange={setShowAITaskReview}>
+        <DialogContent className="rounded-2xl sm:max-w-xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" /> AI แนะนำ Task
+            </DialogTitle>
+            <DialogDescription>เลือก Task ที่ต้องการเพิ่มเข้าโปรเจกต์ของคุณ</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-3 py-4 pr-1">
+            {aiSuggestedTasks.map((task) => (
+              <button
+                key={task.id}
+                onClick={() => {
+                  const newSet = new Set(selectedTaskIds);
+                  if (newSet.has(task.id)) newSet.delete(task.id);
+                  else newSet.add(task.id);
+                  setSelectedTaskIds(newSet);
+                }}
+                className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
+                  selectedTaskIds.has(task.id) 
+                    ? "border-primary bg-primary/5" 
+                    : "border-border/60 hover:border-primary/40 bg-card"
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-foreground leading-tight">{task.title}</p>
+                    <p className="text-xs text-muted-foreground mt-1 mb-2">{task.description}</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {task.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary" className="rounded-md px-1.5 py-0 text-[10px]">{tag}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={`mt-0.5 min-w-[20px] h-5 rounded border-2 flex items-center justify-center transition-colors shadow-sm ${selectedTaskIds.has(task.id) ? "bg-primary border-primary" : "border-muted-foreground/30 bg-card"}`}>
+                    {selectedTaskIds.has(task.id) && <Check className="w-3.5 h-3.5 text-primary-foreground stroke-[3]" />}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-border">
+            <Button variant="outline" onClick={() => setShowAITaskReview(false)} className="rounded-xl">ยกเลิก</Button>
+            <Button onClick={confirmAiTasks} className="rounded-xl bg-primary text-primary-foreground" disabled={selectedTaskIds.size === 0}>
+              เพิ่ม {selectedTaskIds.size} Task ลง To Do
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

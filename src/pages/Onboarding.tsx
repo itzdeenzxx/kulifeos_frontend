@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { doc, updateDoc } from "firebase/firestore";
 import { extractTextFromPDF, getPdfFirstPageAsImage } from "@/lib/pdfExtractor";
 import { analyzeResumeWithAI, cleanResumeText, ParsedResume, generateProfileAnalysis, generateShortBio } from "@/lib/aiAnalyze";
+import { ensureValidRadarData } from "@/lib/utils";
 
 /* ─── Types ─────────────────────────────────────────── */
 interface OnboardingData {
@@ -448,7 +449,7 @@ const StepContent = ({
         </div>
         <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart data={radarData}>
+            <RadarChart data={ensureValidRadarData(radarData, [{ skill: "N/A", value: 10 }])}>
               <PolarGrid stroke="hsl(var(--border))" />
               <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
               <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
@@ -465,7 +466,7 @@ const StepContent = ({
         </div>
         <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart data={techRadarData}>
+            <RadarChart data={ensureValidRadarData(techRadarData, [{ skill: "N/A", value: 10 }])}>
               <PolarGrid stroke="hsl(var(--border))" />
               <PolarAngleAxis dataKey="skill" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
               <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
@@ -771,6 +772,22 @@ const Onboarding = () => {
           updatedAt: Date.now(),
         });
       }
+      
+      // Additionally save to localStorage since Profile/Settings read from it
+      localStorage.setItem("ku_profile", JSON.stringify({
+        name: `${data.firstName} ${data.lastName}`.trim(),
+        faculty: data.faculty,
+        major: data.major,
+        year: data.year,
+        bio: data.bio,
+        skills: data.selectedSkills,
+        interests: data.interests,
+        experiences: data.experiences,
+        projects: data.projects,
+        radarData: analysisResult.radarData,
+        techRadarData: analysisResult.techRadarData,
+        tags: analysisResult.tags
+      }));
     } catch (e) {
       console.error(e);
       // Fallback

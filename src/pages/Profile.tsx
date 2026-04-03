@@ -9,6 +9,7 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 import { Pencil, Briefcase, Award, ChevronRight } from "lucide-react";
 import { useCurrentUserProfile, useSkillData, skillTagsDefault as skillTags, usePortfolioProjects, useExperienceTimeline } from "@/lib/db";
 import { motion } from "framer-motion";
+import { ensureValidRadarData } from "@/lib/utils";
 
 const Profile = () => {
   const { profile: mockUserProfile } = useCurrentUserProfile();
@@ -27,6 +28,7 @@ const Profile = () => {
     faculty: [stored.faculty, stored.major].filter(Boolean).join(" — ") || mockUserProfile.faculty,
     year: stored.year || mockUserProfile.year,
     avatar: stored.avatar || mockUserProfile.avatar,
+    photoURL: stored.photoURL || mockUserProfile.photoURL,
     bio: stored.bio || mockUserProfile.bio,
   } : mockUserProfile;
 
@@ -34,14 +36,22 @@ const Profile = () => {
     ? [...stored.skills, ...(stored.interests ?? [])].slice(0, 12)
     : [...skillTags, "Python", "React", "TensorFlow", "SQL", "Figma"];
 
-  const radarData = stored?.radarData ?? skillData;
-  const techRadarData = stored?.techRadarData ?? [
+  const fallbackRadarData = [
+    { skill: "Communication", value: 10, fullMark: 100 },
+    { skill: "Teamwork", value: 10, fullMark: 100 },
+    { skill: "Problem Solving", value: 10, fullMark: 100 },
+  ];
+  
+  const fallbackTechRadarData = [
     { skill: "Frontend", value: 80, fullMark: 100 },
     { skill: "Backend", value: 65, fullMark: 100 },
     { skill: "Design", value: 70, fullMark: 100 },
     { skill: "Database", value: 60, fullMark: 100 },
     { skill: "Testing", value: 50, fullMark: 100 },
   ];
+
+  const radarData = ensureValidRadarData(stored?.radarData ?? skillData, fallbackRadarData);
+  const techRadarData = ensureValidRadarData(stored?.techRadarData ?? fallbackTechRadarData, fallbackTechRadarData);
 
   const portfolioProjects = stored?.projects?.length
     ? stored.projects.map((p: any) => ({

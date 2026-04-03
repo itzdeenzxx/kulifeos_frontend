@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { collection, doc, getDoc, getDocs, query } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, addDoc, updateDoc, arrayUnion, where, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
 import { useAuth } from "@/hooks/useAuth";
+import * as mockData from "./mockData";
 
 // Generic hook to fetch a document
 export function useFirestoreDoc<T>(collectionName: string, docId?: string, defaultState: T | null = null) {
@@ -58,39 +59,83 @@ export function useFirestoreCollection<T>(collectionName: string, queryConstrain
   return { data, loading };
 }
 
-// Default Fallback States
-const defaultUserProfile = {
-  name: "New Student", faculty: "Unknown Faculty", year: "1st Year", avatar: "NS", bio: "Welcome to KULifeOS!"
-};
-
-const defaultCareerRecommendation = {
-  title: "Exploring Careers", matchScore: 0, description: "Add more skills to get personalized recommendations.", requiredSkills: []
-};
-
 export interface TaskItem { id: string; title: string; description?: string; status: "todo" | "inProgress" | "done"; assignee: string; tags: string[]; createdAt: string; dueDate?: string; }
-export interface ProjectSpace { id: string; name: string; description: string; members: { name: string; avatar: string; role: string }[]; tasks: TaskItem[]; classroomId?: number; groupName?: string; }
+export interface ProjectSpace { id: string; name: string; description: string; ownerId?: string; members: { id?: string; name: string; avatar: string; role: string }[]; tasks: TaskItem[]; classroomId?: number; groupName?: string; }
 
 // Specific feature fetchers
 export function useCurrentUserProfile() {
   const { authUser, userProfile } = useAuth();
   const uid = authUser?.uid;
-  const { data, loading } = useFirestoreDoc<any>("users", uid, userProfile || defaultUserProfile);
-  return { profile: data || defaultUserProfile, loading };
+
+  // Attempt to read from cache first for instant display
+  const [cachedProfile, setCachedProfile] = useState(() => {
+    try {
+      const storedRaw = localStorage.getItem("ku_profile");
+      return storedRaw ? JSON.parse(storedRaw) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const { data, loading } = useFirestoreDoc<any>("users", uid, userProfile || cachedProfile || mockData.userProfile);
+
+  // Sync to cache when Firestore data loads
+  useEffect(() => {
+    if (data && Object.keys(data).length > 0) {
+      const currentCache = JSON.parse(localStorage.getItem("ku_profile") || "{}");
+      // Merge keeping the latest photoURL if it exists
+      const merged = { ...currentCache, ...data };
+      localStorage.setItem("ku_profile", JSON.stringify(merged));
+      setCachedProfile(merged);
+    }
+  }, [data]);
+
+  return { profile: cachedProfile || data || mockData.userProfile, loading };
 }
 
-export function useTeacherActivities() { return useFirestoreCollection<any>("teacherActivities", [], []); }
-export function useTeacherStudents() { return useFirestoreCollection<any>("teacherStudents", [], []); }
-export function useNotifications() { return useFirestoreCollection<any>("notifications", [], []); }
-export function useProjectSpaces() { return useFirestoreCollection<ProjectSpace>("projectSpaces", [], []); }
-export function useTeammates() { return useFirestoreCollection<any>("teammates", [], []); }
-export function useDeadlines() { return useFirestoreCollection<any>("deadlines", [], []); }
-export function useActiveProjects() { return useFirestoreCollection<any>("activeProjects", [], []); }
-export function usePortfolioProjects() { return useFirestoreCollection<any>("portfolioProjects", [], []); }
-export function useExperienceTimeline() { return useFirestoreCollection<any>("experienceTimeline", [], []); }
-export function useSkillData() { return useFirestoreCollection<any>("skillData", [], []); }
-export function useSkillGapData() { return useFirestoreCollection<any>("skillGapData", [], []); }
-export function useGrowthTimeline() { return useFirestoreCollection<any>("growthTimeline", [], []); }
-export function useCareerRecommendation() { return useFirestoreDoc<any>("careerRecommendations", "default", defaultCareerRecommendation); }
+export function useTeacherActivities() { return useFirestoreCollection<any>("teacherActivities", [], mockData.teacherActivities); }
+export function useTeacherStudents() { return useFirestoreCollection<any>("teacherStudents", [], mockData.teacherStudents); }
+export function useNotifications() { return useFirestoreCollection<any>("notifications", [], mockData.notifications); }
+export function useProjectSpaces(userId?: string) {
+  const [data, setData] = useState<ProjectSpace[]>(mockData.myProjectSpaces);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) {
+      setData(mockData.myProjectSpaces);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "projectSpaces"),
+      where("ownerId", "==", userId)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ProjectSpace);
+      // Combine with mock if items is empty, or just use items
+      setData(items.length > 0 ? items : []);
+      setLoading(false);
+    }, (err) => {
+      console.error("Error fetching projectSpaces:", err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  return { data, loading };
+}
+export function useTeammates() { return useFirestoreCollection<any>("teammates", [], mockData.teammates); }
+export function useDeadlines() { return useFirestoreCollection<any>("deadlines", [], mockData.deadlines); }
+export function useActiveProjects() { return useFirestoreCollection<any>("activeProjects", [], mockData.activeProjects); }
+export function usePortfolioProjects() { return useFirestoreCollection<any>("portfolioProjects", [], mockData.portfolioProjects); }
+export function useExperienceTimeline() { return useFirestoreCollection<any>("experienceTimeline", [], mockData.experienceTimeline); }
+export function useSkillData() { return useFirestoreCollection<any>("skillData", [], mockData.skillData); }
+export function useSkillGapData() { return useFirestoreCollection<any>("skillGapData", [], mockData.skillGapData); }
+export function useGrowthTimeline() { return useFirestoreCollection<any>("growthTimeline", [], mockData.growthTimeline); }
+export function useCareerRecommendation() { return useFirestoreDoc<any>("careerRecommendations", "default", mockData.careerRecommendation); }
 
 export const skillTagsDefault = ["AI & ML", "Finance", "Marketing", "Data", "Leadership"];
 
@@ -103,3 +148,25 @@ export const aiMockResponsesDefault: Record<string, string> = {
   topic: "สำหรับหัวข้อโปรเจกต์ ลองดูแนวทางนี้:\n- **AI + Education**: ระบบติวเตอร์อัจฉริยะ\n- **AI + Agriculture**: ตรวจจับโรคพืชด้วยภาพ\n- **AI + Health**: ระบบแนะนำการออกกำลังกาย\n\nเลือกหัวข้อที่ทีมถนัดและมี dataset ให้ใช้ครับ",
   tech: "สำหรับ tech stack แนะนำ:\n- **Frontend**: React + TypeScript + Tailwind\n- **Backend**: Node.js + Express หรือ FastAPI\n- **Database**: PostgreSQL\n- **AI/ML**: Python + TensorFlow/PyTorch\n- **Deploy**: Docker + Cloud Run\n\nเลือกตามความถนัดของทีมได้เลยครับ",
 };
+
+export async function createProjectSpace(data: Omit<DbProjectSpace, "id">) {
+  try {
+    const docRef = await addDoc(collection(db, "projectSpaces"), data);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error creating project space:", error);
+    throw error;
+  }
+}
+
+export async function addTasksToProjectSpace(spaceId: string, tasks: TaskItem[]) {
+  try {
+    const docRef = doc(db, "projectSpaces", spaceId);
+    await updateDoc(docRef, {
+      tasks: arrayUnion(...tasks)
+    });
+  } catch (error) {
+    console.error("Error adding tasks to project space:", error);
+    throw error;
+  }
+}

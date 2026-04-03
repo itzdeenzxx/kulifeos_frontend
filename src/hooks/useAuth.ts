@@ -15,6 +15,9 @@ export interface UserProfile {
   updatedAt: number;
 }
 
+// Global cache to prevent repeated fetching of the same user profile
+let globalCachedProfile: { uid: string; profile: UserProfile } | null = null;
+
 export function useAuth() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -23,16 +26,30 @@ export function useAuth() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    let isMounted = true;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
+        if (!isMounted) return;
         setAuthUser(user);
         
         if (user) {
+          // Use global cache if valid
+          if (globalCachedProfile && globalCachedProfile.uid === user.uid) {
+            setUserProfile(globalCachedProfile.profile);
+            localStorage.setItem("ku_current_user_id", user.uid);
+            setLoading(false);
+            return;
+          }
+
           const userDocRef = doc(db, "users", user.uid);
           const userSnap = await getDoc(userDocRef);
           
+          if (!isMounted) return;
+
           if (userSnap.exists()) {
-            setUserProfile(userSnap.data() as UserProfile);
+            const data = userSnap.data() as UserProfile;
+            globalCachedProfile = { uid: user.uid, profile: data };
+            setUserProfile(data);
             localStorage.setItem("ku_current_user_id", user.uid);
           } else {
             setError("User profile not found");
@@ -40,18 +57,23 @@ export function useAuth() {
             navigate("/auth");
           }
         } else {
+          globalCachedProfile = null;
           setUserProfile(null);
           localStorage.removeItem("ku_current_user_id");
         }
       } catch (err: any) {
+        if (!isMounted) return;
         console.error("Auth error:", err);
         setError(err.message);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [navigate]);
 
   return {

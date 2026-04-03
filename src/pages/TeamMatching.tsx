@@ -65,7 +65,7 @@ const TeamMatching = () => {
         </div>
 
         {/* Mobile: List */}
-        <div className="space-y-2.5 md:hidden" key={activeFilter + search}>
+        <div className="space-y-2.5 md:hidden" id={activeFilter + search}>
           {filtered.map((student, i) => (
             <motion.div
               key={student.id}
@@ -98,7 +98,7 @@ const TeamMatching = () => {
         </div>
 
         {/* Desktop: Grid */}
-        <StaggerContainer className="hidden gap-5 sm:grid-cols-2 md:grid lg:grid-cols-3" key={activeFilter + search}>
+        <StaggerContainer className="hidden gap-5 sm:grid-cols-2 md:grid lg:grid-cols-3" id={activeFilter + search}>
           {filtered.map((student) => (
             <StaggerItem key={student.id}>
               <Card className="card-hover green-glow rounded-2xl border-border/50">

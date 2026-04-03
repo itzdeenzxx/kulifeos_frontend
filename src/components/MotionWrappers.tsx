@@ -13,8 +13,9 @@ export const PageTransition = ({ children }: { children: ReactNode }) => (
 );
 
 // Stagger container
-export const StaggerContainer = ({ children, className }: { children: ReactNode; className?: string }) => (
+export const StaggerContainer = ({ children, className, id }: { children: ReactNode; className?: string; id?: string }) => (
   <motion.div
+    key={id}
     initial="hidden"
     animate="visible"
     variants={{

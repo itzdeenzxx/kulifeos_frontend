@@ -137,6 +137,57 @@ const parseJsonFromLLM = (content: string): ParsedResume => {
   }
 };
 
+export async function generateProjectTasks(projectName: string, projectDescription: string, existingTasks: string[] = []): Promise<any[]> {
+  const apiKey = import.meta.env.VITE_TOGETHER_API_KEY;
+  if (!apiKey) throw new Error("Missing VITE_TOGETHER_API_KEY");
+
+  const existingTasksSection = existingTasks.length > 0 
+    ? `\n\nExisting tasks in this project (DO NOT suggest these or anything similar): \n${existingTasks.map(t => `- ${t}`).join("\n")}`
+    : "";
+
+  const prompt = `You are an expert Project Manager. Based on the given project name and description, generate a list of 3 to 5 actionable tasks to kickstart or advance the project.
+Output ONLY strict JSON in the following format, with no markdown formatting or extra text:
+[
+  {
+    "title": "task title (short and concise, in Thai)",
+    "description": "task detail (1-2 sentences, in Thai)",
+    "tags": ["Tag1", "Tag2"]
+  }
+]
+
+Project Name: ${projectName}
+Project Description: ${projectDescription}${existingTasksSection}`;
+
+  const res = await fetch("https://api.together.xyz/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "google/gemma-3n-E4B-it",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3
+    })
+  });
+
+  if (!res.ok) {
+    console.error("AI API Error:", await res.text());
+    return [];
+  }
+
+  const data = await res.json();
+  const rawText = data?.choices?.[0]?.message?.content ?? "";
+  try {
+    const cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error("Failed to parse AI generated tasks", e, rawText);
+    return [];
+  }
+}
+
 export async function analyzeResumeWithAI(input: {
   content: string;
   mode: ResumeParseMode;

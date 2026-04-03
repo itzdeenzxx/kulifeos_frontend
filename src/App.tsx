@@ -14,6 +14,7 @@ import Profile from "./pages/Profile";
 import TeamMatching from "./pages/TeamMatching";
 import Projects from "./pages/Projects";
 import CareerInsights from "./pages/CareerInsights";
+import Community from "./pages/Community";
 import Settings from "./pages/Settings";
 import UploadResume from "./pages/UploadResume";
 import TeacherDashboard from "./pages/TeacherDashboard";
@@ -31,7 +32,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/team" element={<ProtectedRoute><TeamMatching /></ProtectedRoute>} />
             <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
             <Route path="/career" element={<ProtectedRoute><CareerInsights /></ProtectedRoute>} />
+            <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/upload" element={<ProtectedRoute><UploadResume /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />

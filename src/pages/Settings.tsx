@@ -25,19 +25,25 @@ import { useAuth } from "@/hooks/useAuth";
 const Settings = () => {
   const { authUser } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { profile: userProfile } = useCurrentUserProfile();
+  const { profile: dbUserProfile } = useCurrentUserProfile();
   const { toast } = useToast();
-  const [name, setName] = useState(userProfile?.name || "");
-  const [faculty, setFaculty] = useState(userProfile?.faculty || "");
-  const [bio, setBio] = useState(userProfile?.bio || "");
+  
+  const [userProfile, setUserProfile] = useState<any>(dbUserProfile || {});
+  const [name, setName] = useState("");
+  const [faculty, setFaculty] = useState("");
+  const [bio, setBio] = useState("");
 
   useEffect(() => {
-    if (userProfile) {
-      setName(userProfile.name || "");
-      setFaculty(userProfile.faculty || "");
-      setBio(userProfile.bio || "");
-    }
-  }, [userProfile]);
+    const storedRaw = localStorage.getItem("ku_profile");
+    const stored = storedRaw ? JSON.parse(storedRaw) : {};
+    const combined = { ...dbUserProfile, ...stored };
+    setUserProfile(combined);
+    
+    setName(combined.name || dbUserProfile?.name || "");
+    setFaculty(combined.faculty || dbUserProfile?.faculty || "");
+    setBio(combined.bio || dbUserProfile?.bio || "");
+  }, [dbUserProfile]);
+
   const [language, setLanguage] = useState("th");
   const [emailNotif, setEmailNotif] = useState(true);
   const [lineNotif, setLineNotif] = useState(true);
@@ -48,7 +54,9 @@ const Settings = () => {
 
   const handleSave = () => {
     const stored = JSON.parse(localStorage.getItem("ku_profile") || "{}");
-    localStorage.setItem("ku_profile", JSON.stringify({ ...stored, name, faculty, bio }));
+    const newProfile = { ...stored, name, faculty, bio };
+    localStorage.setItem("ku_profile", JSON.stringify(newProfile));
+    setUserProfile((prev: any) => ({ ...prev, ...newProfile }));
     toast({ title: "บันทึกสำเร็จ ✓", description: "ข้อมูลโปรไฟล์ได้รับการอัปเดตแล้ว" });
   };
 
@@ -62,18 +70,41 @@ const Settings = () => {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !authUser) return;
+    if (!file) return;
 
     try {
       toast({ title: "กำลังอัปโหลดรูปภาพ...", description: "กรุณารอสักครู่" });
-      const avatarRef = storageRef(storage, `users/${authUser.uid}/avatar`);
-      await uploadBytes(avatarRef, file);
-      const photoURL = await getDownloadURL(avatarRef);
+      
+      let photoURL = "";
+      if (authUser) {
+        try {
+          const avatarRef = storageRef(storage, `users/${authUser.uid}/avatar`);
+          await uploadBytes(avatarRef, file);
+          photoURL = await getDownloadURL(avatarRef);
 
-      const userDocRef = doc(db, "users", authUser.uid);
-      await updateDoc(userDocRef, { photoURL });
+          const userDocRef = doc(db, "users", authUser.uid);
+          await updateDoc(userDocRef, { photoURL });
+        } catch (fbError) {
+          console.warn("Firebase upload failed, falling back to local config:", fbError);
+        }
+      }
 
-      toast({ title: "อัปโหลดสำเร็จ ✓", description: "รูปโปรไฟล์ของคุณได้รับการอัปเดตแล้ว" });
+      if (photoURL) {
+        const stored = JSON.parse(localStorage.getItem("ku_profile") || "{}");
+        localStorage.setItem("ku_profile", JSON.stringify({ ...stored, photoURL }));
+        setUserProfile((prev: any) => ({ ...prev, photoURL }));
+        toast({ title: "อัปโหลดสำเร็จ ✓", description: "รูปโปรไฟล์ของคุณได้รับการอัปเดตแล้ว" });
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64Url = reader.result as string;
+          const stored = JSON.parse(localStorage.getItem("ku_profile") || "{}");
+          localStorage.setItem("ku_profile", JSON.stringify({ ...stored, photoURL: base64Url }));
+          setUserProfile((prev: any) => ({ ...prev, photoURL: base64Url }));
+          toast({ title: "อัปโหลดสำเร็จ ✓", description: "รูปโปรไฟล์จำลองได้รับการอัปเดตแล้ว" });
+        };
+        reader.readAsDataURL(file);
+      }
     } catch (error) {
       console.error("Error uploading avatar:", error);
       toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถอัปโหลดรูปภาพได้", variant: "destructive" });
