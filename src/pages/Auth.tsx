@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, ArrowRight, Sparkles, Hand, Rocket, KeyRound } from "lucide-react";
@@ -14,6 +14,7 @@ import {
   signOut
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { useAuth } from "@/hooks/useAuth";
 
 type Tab = "login" | "signup";
 type AuthStep = "initial" | "ku_student_id";
@@ -139,6 +140,18 @@ const TabSwitcher = ({ tab, onSwitch }: { tab: Tab; onSwitch: (t: Tab) => void }
 
 const Auth = () => {
   const navigate = useNavigate();
+  const { userProfile, loading: authLoading } = useAuth();
+  
+  useEffect(() => {
+    if (userProfile && !authLoading) {
+      if (userProfile.onboardingStep >= 4) {
+        navigate("/dashboard", { replace: true });
+      } else {
+        navigate("/onboarding", { replace: true });
+      }
+    }
+  }, [userProfile, authLoading, navigate]);
+
   const [tab, setTab] = useState<Tab>("login");
   const [authStep, setAuthStep] = useState<AuthStep>("initial");
 

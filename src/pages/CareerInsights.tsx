@@ -9,6 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { TrendingUp, Target, Zap, Loader2, BrainCircuit, Sparkles, History, MapPin, Eye, Clock, Flame } from "lucide-react";
 import { useCurrentUserProfile } from "@/lib/db";
+import { db } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import { useAuth } from "@/hooks/useAuth";
 import { generateCareerInsightsCoT, CareerCoTResult } from "@/lib/careerCoT";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -302,6 +305,7 @@ const JsonInsightRenderer = ({ content, colorClass }: { content: string, colorCl
 
 const CareerInsights = () => {
   const { profile } = useCurrentUserProfile();
+  const { authUser } = useAuth();
   const { toast } = useToast();
   
   const [history, setHistory] = useState<CareerCoTResult[]>([]);
@@ -310,17 +314,22 @@ const CareerInsights = () => {
   const [loadingStep, setLoadingStep] = useState("");
 
   useEffect(() => {
-    const cachedHistoryStr = localStorage.getItem("ku_career_insight_history");
-    if (cachedHistoryStr) {
-      try {
-        const parsedHistory = JSON.parse(cachedHistoryStr);
-        if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
-          setHistory(parsedHistory);
-          setInsightData(parsedHistory[0]); // Most recent
-        }
-      } catch (e) {}
+    if (profile?.careerInsightsHistory && Array.isArray(profile.careerInsightsHistory) && profile.careerInsightsHistory.length > 0) {
+      setHistory(profile.careerInsightsHistory);
+      setInsightData(profile.careerInsightsHistory[0]);
+    } else {
+      const cachedHistoryStr = localStorage.getItem(`ku_career_insight_history_${localStorage.getItem("ku_current_user_id") || "guest"}`);
+      if (cachedHistoryStr) {
+        try {
+          const parsedHistory = JSON.parse(cachedHistoryStr);
+          if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+            setHistory(parsedHistory);
+            setInsightData(parsedHistory[0]); // Most recent
+          }
+        } catch (e) {}
+      }
     }
-  }, []);
+  }, [profile?.careerInsightsHistory]);
 
   const handleGenerate = async () => {
     setIsLoading(true);
@@ -339,8 +348,16 @@ const CareerInsights = () => {
       setHistory(newHistory);
       setInsightData(result);
       
-      localStorage.setItem("ku_career_insight_history", JSON.stringify(newHistory));
-      localStorage.setItem("ku_career_insight", JSON.stringify(result)); // For Dashboard
+      if (authUser) {
+        await updateDoc(doc(db, "users", authUser.uid), {
+          careerInsightsHistory: newHistory,
+          latestCareerInsight: result,
+          updatedAt: Date.now()
+        });
+      }
+      
+      localStorage.setItem(`ku_career_insight_history_${localStorage.getItem("ku_current_user_id") || "guest"}`, JSON.stringify(newHistory));
+      localStorage.setItem(`ku_career_insight_${localStorage.getItem("ku_current_user_id") || "guest"}`, JSON.stringify(result));
       
       toast({
         title: "AI Analysis Complete 🎉",

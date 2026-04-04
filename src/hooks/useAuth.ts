@@ -42,12 +42,31 @@ export function useAuth() {
           }
 
           const userDocRef = doc(db, "users", user.uid);
-          const userSnap = await getDoc(userDocRef);
+          let data: UserProfile | null = null;
+          
+          try {
+            const userSnap = await getDoc(userDocRef);
+            if (userSnap.exists()) {
+              data = userSnap.data() as UserProfile;
+              localStorage.setItem(`ku_profile_${user.uid}`, JSON.stringify(data));
+            }
+          } catch (fetchErr: any) {
+            console.warn("Failed to fetch fresh profile from Firebase, trying local cache. Error:", fetchErr);
+            const cachedParams = localStorage.getItem(`ku_profile_${user.uid}`);
+            if (cachedParams) {
+              try {
+                data = JSON.parse(cachedParams) as UserProfile;
+              } catch (e) {
+                console.error("Failed to parse cached profile", e);
+              }
+            } else {
+              throw fetchErr; // rethrow if no cache
+            }
+          }
           
           if (!isMounted) return;
 
-          if (userSnap.exists()) {
-            const data = userSnap.data() as UserProfile;
+          if (data) {
             globalCachedProfile = { uid: user.uid, profile: data };
             setUserProfile(data);
             localStorage.setItem("ku_current_user_id", user.uid);

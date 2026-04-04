@@ -20,7 +20,7 @@ const Profile = () => {
   const navigate = useNavigate();
 
   // Load persisted onboarding data or fall back to mock
-  const storedRaw = localStorage.getItem("ku_profile");
+  const storedRaw = localStorage.getItem(`ku_profile_${localStorage.getItem("ku_current_user_id") || "guest"}`);
   const stored = storedRaw ? JSON.parse(storedRaw) : null;
 
   const userProfile = stored ? {

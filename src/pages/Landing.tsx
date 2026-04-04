@@ -1,7 +1,9 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Brain, Users, FolderKanban, Rocket, ArrowRight, Sparkles, CheckCircle2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 // --- SVG Components ---
 const AnimatedStudentHero = () => {
@@ -132,6 +134,19 @@ const journeySteps = [
 ];
 
 const LandingPage = () => {
+  const { userProfile, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && userProfile) {
+      if (userProfile.onboardingStep >= 4) {
+        navigate("/dashboard", { replace: true });
+      } else {
+        navigate("/onboarding", { replace: true });
+      }
+    }
+  }, [userProfile, loading, navigate]);
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans selection:bg-primary/20 overflow-x-hidden">
       {/* Nav */}

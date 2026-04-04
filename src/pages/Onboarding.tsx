@@ -775,7 +775,7 @@ const Onboarding = () => {
       }
       
       // Additionally save to localStorage since Profile/Settings read from it
-      localStorage.setItem("ku_profile", JSON.stringify({
+      localStorage.setItem(`ku_profile_${localStorage.getItem("ku_current_user_id") || "guest"}`, JSON.stringify({
         name: `${data.firstName} ${data.lastName}`.trim(),
         faculty: data.faculty,
         major: data.major,
