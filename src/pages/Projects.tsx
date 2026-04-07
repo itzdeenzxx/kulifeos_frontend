@@ -14,7 +14,7 @@ import {
   Sparkles, Plus, Send, Bot, User, GripVertical,
   CheckCircle2, Circle, Clock, Trash2, ChevronRight, MessageCircle, Users, ChevronDown, Check
 } from "lucide-react";
-import { useProjectSpaces, createProjectSpace, addTasksToProjectSpace, aiChatMessagesDefault as aiChatMessages, aiMockResponsesDefault as aiMockResponses, type TaskItem, type ProjectSpace } from "@/lib/db";
+import { useProjectSpaces, createProjectSpace, updateProjectSpace, addTasksToProjectSpace, aiChatMessagesDefault as aiChatMessages, aiMockResponsesDefault as aiMockResponses, type TaskItem, type ProjectSpace } from "@/lib/db";
 import { generateProjectTasks } from "@/lib/aiAnalyze";
 import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
@@ -176,7 +176,7 @@ const Projects = () => {
   const doneTasks = tasksByStatus.done.length;
   const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (!newTask.title.trim()) return;
     const task: TaskItem = {
       id: `t-${Date.now()}`,
@@ -187,9 +187,18 @@ const Projects = () => {
       tags: newTask.tags ? newTask.tags.split(",").map((t) => t.trim()) : [],
       createdAt: new Date().toISOString().split("T")[0],
     };
+    
+    // Optimistic UI update
     setSpaces((prev) =>
       prev.map((s) => (s.id === activeSpaceId ? { ...s, tasks: [...s.tasks, task] } : s))
     );
+    
+    try {
+      await addTasksToProjectSpace(activeSpaceId, [task]);
+    } catch (e) {
+      console.error("Failed to add task via firebase");
+    }
+
     setNewTask({ title: "", description: "", assignee: "", tags: "" });
     setShowAddTask(false);
   };
@@ -236,22 +245,42 @@ const Projects = () => {
     }
   };
 
-  const moveTask = (taskId: string, newStatus: TaskItem["status"]) => {
+  const moveTask = async (taskId: string, newStatus: TaskItem["status"]) => {
+    const spaceToUpdate = spaces.find(s => s.id === activeSpaceId);
+    if (!spaceToUpdate) return;
+    
+    const updatedTasks = spaceToUpdate.tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t));
+    
     setSpaces((prev) =>
       prev.map((s) =>
-        s.id === activeSpaceId
-          ? { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)) }
-          : s
+        s.id === activeSpaceId ? { ...s, tasks: updatedTasks } : s
       )
     );
+    
+    try {
+      await updateProjectSpace(activeSpaceId, { tasks: updatedTasks });
+    } catch (e) {
+      console.error("Move task sync failed", e);
+    }
   };
 
-  const deleteTask = (taskId: string) => {
+  const deleteTask = async (taskId: string) => {
+    const spaceToUpdate = spaces.find(s => s.id === activeSpaceId);
+    if (!spaceToUpdate) return;
+    
+    const updatedTasks = spaceToUpdate.tasks.filter((t) => t.id !== taskId);
+    
     setSpaces((prev) =>
       prev.map((s) =>
-        s.id === activeSpaceId ? { ...s, tasks: s.tasks.filter((t) => t.id !== taskId) } : s
+        s.id === activeSpaceId ? { ...s, tasks: updatedTasks } : s
       )
     );
+    
+    try {
+      await updateProjectSpace(activeSpaceId, { tasks: updatedTasks });
+    } catch (e) {
+      console.error("Delete task sync failed", e);
+    }
   };
 
   const handleSendChat = () => {

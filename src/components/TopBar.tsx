@@ -23,7 +23,7 @@ export function TopBar({ title }: TopBarProps) {
         <Avatar className="h-9 w-9 cursor-pointer">
           <AvatarImage src={userProfile?.photoURL || userProfile?.avatar} />
           <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-            {userProfile.avatar}
+            {userProfile?.avatar || "Ku"}
           </AvatarFallback>
         </Avatar>
       </div>

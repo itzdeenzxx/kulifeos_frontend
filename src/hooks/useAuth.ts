@@ -41,6 +41,18 @@ export function useAuth() {
             return;
           }
 
+          // Optimistic UI load from local storage to bypass Firebase network delays
+          const cachedParams = localStorage.getItem(`ku_profile_${user.uid}`);
+          if (cachedParams) {
+            try {
+              const parsed = JSON.parse(cachedParams) as UserProfile;
+              setUserProfile(parsed);
+              setLoading(false); // Instantly allow access to the dashboard
+            } catch (e) {
+              console.error("Optimistic cache parse error", e);
+            }
+          }
+
           const userDocRef = doc(db, "users", user.uid);
           let data: UserProfile | null = null;
           

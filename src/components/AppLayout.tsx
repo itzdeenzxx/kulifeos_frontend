@@ -42,7 +42,7 @@ export function AppLayout({ children, title, hideHeader = false }: AppLayoutProp
                 </button>
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-                    {userProfile.avatar}
+                    {userProfile?.avatar || "Ku"}
                   </AvatarFallback>
                 </Avatar>
               </div>

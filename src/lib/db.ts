@@ -35,26 +35,57 @@ export function useFirestoreDoc<T>(collectionName: string, docId?: string, defau
 
 // Generic hook to fetch a collection
 export function useFirestoreCollection<T>(collectionName: string, queryConstraints: any[] = [], defaultState: T[] = []) {
+  const { authUser } = useAuth();
   const [data, setData] = useState<T[]>(defaultState);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchCollection = async () => {
       try {
-        const q = query(collection(db, collectionName), ...queryConstraints);
-        const querySnapshot = await getDocs(q);
-        const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as unknown as T);
-        if (items.length > 0) {
-          setData(items);
+        if (!authUser) {
+          setData(defaultState);
+          setLoading(false);
+          return;
         }
+        
+        // Automatically isolate by user ID if it's a user-owned collection
+        // Project spaces use ownerId, others use userId
+        const ownerField = collectionName === "projectSpaces" ? "ownerId" : "userId";
+        const q = query(
+          collection(db, collectionName), 
+          where(ownerField, "==", authUser.uid), 
+          ...queryConstraints
+        );
+        
+        // Listen to real-time updates to match Project spaces realtime behavior
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as unknown as T);
+          // If no items, actually return empty so users don't see someone else's mock data!
+          // Exception: notifications / random mock lists can be kept if we really need them, 
+          // but per user request: "แยก userid เลย คนไหนเป็นคนสร้างข้อมูลนั้นก็แสดงให้แค่นั้นเท่านั้น"
+          setData(items.length > 0 ? items : []);
+          setLoading(false);
+        }, (err) => {
+          console.error(`Listen error ${collectionName}:`, err);
+          setLoading(false);
+        });
+
+        return unsubscribe;
+        
       } catch (err) {
         console.error(`Error fetching ${collectionName}:`, err);
-      } finally {
         setLoading(false);
       }
     };
-    fetchCollection();
-  }, [collectionName, JSON.stringify(queryConstraints)]);
+    
+    // We store the unsubscribe function
+    let unsub: any;
+    fetchCollection().then(res => { unsub = res; });
+    
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
+  }, [collectionName, JSON.stringify(queryConstraints), authUser?.uid]);
 
   return { data, loading };
 }
@@ -67,42 +98,43 @@ export function useCurrentUserProfile() {
   const { authUser, userProfile } = useAuth();
   const uid = authUser?.uid;
 
-  // Attempt to read from cache first for instant display
+  // Attempt to read from user-specific cache first for instant display
   const [cachedProfile, setCachedProfile] = useState(() => {
+    if (!uid) return null;
     try {
-      const storedRaw = localStorage.getItem("ku_profile");
+      const storedRaw = localStorage.getItem(`ku_profile_${uid}`);
       return storedRaw ? JSON.parse(storedRaw) : null;
     } catch {
       return null;
     }
   });
 
-  const { data, loading } = useFirestoreDoc<any>("users", uid, userProfile || cachedProfile || mockData.userProfile);
+  const { data, loading } = useFirestoreDoc<any>("users", uid, userProfile || cachedProfile || null);
 
   // Sync to cache when Firestore data loads
   useEffect(() => {
-    if (data && Object.keys(data).length > 0) {
-      const currentCache = JSON.parse(localStorage.getItem("ku_profile") || "{}");
+    if (data && Object.keys(data).length > 0 && uid) {
+      const currentCache = JSON.parse(localStorage.getItem(`ku_profile_${uid}`) || "{}");
       // Merge keeping the latest photoURL if it exists
       const merged = { ...currentCache, ...data };
-      localStorage.setItem("ku_profile", JSON.stringify(merged));
+      localStorage.setItem(`ku_profile_${uid}`, JSON.stringify(merged));
       setCachedProfile(merged);
     }
-  }, [data]);
+  }, [data, uid]);
 
-  return { profile: cachedProfile || data || mockData.userProfile, loading };
+  return { profile: cachedProfile || data || userProfile, loading };
 }
 
 export function useTeacherActivities() { return useFirestoreCollection<any>("teacherActivities", [], mockData.teacherActivities); }
 export function useTeacherStudents() { return useFirestoreCollection<any>("teacherStudents", [], mockData.teacherStudents); }
 export function useNotifications() { return useFirestoreCollection<any>("notifications", [], mockData.notifications); }
 export function useProjectSpaces(userId?: string) {
-  const [data, setData] = useState<ProjectSpace[]>(mockData.myProjectSpaces);
+  const [data, setData] = useState<ProjectSpace[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) {
-      setData(mockData.myProjectSpaces);
+      setData([]);
       setLoading(false);
       return;
     }
@@ -114,7 +146,6 @@ export function useProjectSpaces(userId?: string) {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ProjectSpace);
-      // Combine with mock if items is empty, or just use items
       setData(items.length > 0 ? items : []);
       setLoading(false);
     }, (err) => {
@@ -155,6 +186,16 @@ export async function createProjectSpace(data: Omit<DbProjectSpace, "id">) {
     return docRef.id;
   } catch (error) {
     console.error("Error creating project space:", error);
+    throw error;
+  }
+}
+
+export async function updateProjectSpace(spaceId: string, data: Partial<DbProjectSpace>) {
+  try {
+    const docRef = doc(db, "projectSpaces", spaceId);
+    await updateDoc(docRef, data);
+  } catch (error) {
+    console.error("Error updating project space:", error);
     throw error;
   }
 }

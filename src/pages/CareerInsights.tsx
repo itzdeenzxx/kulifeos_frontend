@@ -317,8 +317,8 @@ const CareerInsights = () => {
     if (profile?.careerInsightsHistory && Array.isArray(profile.careerInsightsHistory) && profile.careerInsightsHistory.length > 0) {
       setHistory(profile.careerInsightsHistory);
       setInsightData(profile.careerInsightsHistory[0]);
-    } else {
-      const cachedHistoryStr = localStorage.getItem(`ku_career_insight_history_${localStorage.getItem("ku_current_user_id") || "guest"}`);
+    } else if (profile?.id) {
+      const cachedHistoryStr = localStorage.getItem(`ku_career_insight_history_${profile.id}`);
       if (cachedHistoryStr) {
         try {
           const parsedHistory = JSON.parse(cachedHistoryStr);
@@ -329,9 +329,10 @@ const CareerInsights = () => {
         } catch (e) {}
       }
     }
-  }, [profile?.careerInsightsHistory]);
+  }, [profile?.careerInsightsHistory, profile?.id]);
 
   const handleGenerate = async () => {
+    if (!profile) return;
     setIsLoading(true);
     setLoadingStep("กำลังเริ่มกระบวนการ Chain of Thought ด้วย Gemma 3...");
     try {
@@ -342,22 +343,25 @@ const CareerInsights = () => {
 
       const result = await generateCareerInsightsCoT(profile);
       
-      result.id = result.id || Date.now().toString();
-      result.timestamp = result.timestamp || new Date().toISOString();
+      result.id = Date.now().toString();
+      result.timestamp = new Date().toISOString();
       const newHistory = [result, ...history];
       setHistory(newHistory);
       setInsightData(result);
       
       if (authUser) {
-        await updateDoc(doc(db, "users", authUser.uid), {
+        const userRef = doc(db, "users", authUser.uid);
+        await updateDoc(userRef, {
           careerInsightsHistory: newHistory,
           latestCareerInsight: result,
           updatedAt: Date.now()
         });
       }
       
-      localStorage.setItem(`ku_career_insight_history_${localStorage.getItem("ku_current_user_id") || "guest"}`, JSON.stringify(newHistory));
-      localStorage.setItem(`ku_career_insight_${localStorage.getItem("ku_current_user_id") || "guest"}`, JSON.stringify(result));
+      if (profile?.id) {
+        localStorage.setItem(`ku_career_insight_history_${profile.id}`, JSON.stringify(newHistory));
+        localStorage.setItem(`ku_career_insight_${profile.id}`, JSON.stringify(result));
+      }
       
       toast({
         title: "AI Analysis Complete 🎉",

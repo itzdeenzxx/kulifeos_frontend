@@ -24,13 +24,20 @@ const Profile = () => {
   const stored = storedRaw ? JSON.parse(storedRaw) : null;
 
   const userProfile = stored ? {
-    name: stored.name || mockUserProfile.name,
-    faculty: [stored.faculty, stored.major].filter(Boolean).join(" — ") || mockUserProfile.faculty,
-    year: stored.year || mockUserProfile.year,
-    avatar: stored.avatar || mockUserProfile.avatar,
-    photoURL: stored.photoURL || mockUserProfile.photoURL,
-    bio: stored.bio || mockUserProfile.bio,
-  } : mockUserProfile;
+    name: stored.name || mockUserProfile?.name || "Anonymous User",
+    faculty: [stored.faculty, stored.major].filter(Boolean).join(" — ") || mockUserProfile?.faculty || "Faculty Not Stated",
+    year: stored.year || mockUserProfile?.year || "Year 1",
+    avatar: stored.avatar || mockUserProfile?.avatar || "Ku",
+    photoURL: stored.photoURL || mockUserProfile?.photoURL || "",
+    bio: stored.bio || mockUserProfile?.bio || "No bio yet. Add one in settings.",
+  } : mockUserProfile || {
+    name: "Anonymous User",
+    faculty: "Faculty Not Stated",
+    year: "Year 1",
+    avatar: "Ku",
+    photoURL: "",
+    bio: "No bio yet. Add one in settings.",
+  };
 
   const allSkillTags: string[] = stored?.skills?.length
     ? [...stored.skills, ...(stored.interests ?? [])].slice(0, 12)
